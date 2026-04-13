@@ -1,0 +1,10 @@
+@import "tailwindcss";
+
+@layer base {
+  html {
+    font-family: 'Noto Sans JP', 'Inter', system-ui, sans-serif;
+  }
+  * {
+    box-sizing: border-box;
+  }
+}

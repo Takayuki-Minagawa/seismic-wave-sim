@@ -1,0 +1,133 @@
+{
+  "appTitle": "Seismic Wave & Earth Interior Simulator",
+  "lang": "English",
+  "theme": {
+    "light": "Light",
+    "dark": "Dark"
+  },
+  "controls": {
+    "title": "Controls",
+    "depth": "Focus Depth",
+    "depthUnit": "km",
+    "magnitude": "Magnitude",
+    "speed": "Speed",
+    "play": "Play",
+    "pause": "Pause",
+    "reset": "Reset",
+    "addObserver": "Add Station",
+    "epicenterAngle": "Epicenter",
+    "time": "Elapsed Time",
+    "timeUnit": "s"
+  },
+  "preset": {
+    "title": "Presets",
+    "tohoku": "Tōhoku Earthquake (2011)",
+    "sumatra": "Sumatra Earthquake (2004)",
+    "chile": "Chile Earthquake (1960)"
+  },
+  "wave": {
+    "P": "P-wave",
+    "S": "S-wave",
+    "PKP": "PKP",
+    "PP": "PP",
+    "SKS": "SKS"
+  },
+  "observer": {
+    "title": "Seismic Stations",
+    "distance": "Epicentral Distance",
+    "distanceUnit": "°",
+    "arrival": "Arrival Time",
+    "noArrival": "Not arrived",
+    "shadowZoneP": "P-wave Shadow Zone",
+    "shadowZoneS": "S-wave Shadow Zone",
+    "remove": "Remove",
+    "waiting": "Waiting",
+    "arrived": "Arrived"
+  },
+  "graph": {
+    "title": "Travel Time Curves",
+    "xAxis": "Epicentral Distance (°)",
+    "yAxis": "Travel Time (s)",
+    "pCurve": "P-wave",
+    "sCurve": "S-wave",
+    "pkpCurve": "PKP"
+  },
+  "layers": {
+    "title": "Earth Interior Structure",
+    "crust": "Crust",
+    "upperMantle": "Upper Mantle",
+    "lowerMantle": "Lower Mantle",
+    "outerCore": "Outer Core",
+    "innerCore": "Inner Core",
+    "thickness": "Thickness",
+    "thicknessUnit": "km",
+    "density": "Density",
+    "densityUnit": "g/cm³",
+    "pVelocity": "P-wave velocity",
+    "sVelocity": "S-wave velocity",
+    "velocityUnit": "km/s",
+    "state": "State",
+    "solid": "Solid",
+    "liquid": "Liquid",
+    "description": {
+      "crust": "The outermost layer of Earth. Continental crust is 30–70 km thick; oceanic crust is 5–10 km. P-wave: 6.0 km/s, S-wave: 3.5 km/s.",
+      "upperMantle": "Extends from the crust to ~400 km depth. Includes the lithosphere and asthenosphere. P-wave: 8.0 km/s, S-wave: 4.5 km/s.",
+      "lowerMantle": "From 400 to 2900 km depth. Solid rock under high pressure. P-wave: 13.0 km/s, S-wave: 7.0 km/s.",
+      "outerCore": "From 2900 to 5150 km depth. Liquid iron-nickel alloy. S-waves cannot travel through liquids, creating the S-wave shadow zone. P-wave: 9.0 km/s.",
+      "innerCore": "From 5150 km to Earth's center. Solid iron-nickel alloy. P-wave: 11.0 km/s, S-wave: 3.5 km/s."
+    }
+  },
+  "learning": {
+    "title": "Learning Panel",
+    "explanationTab": "Explanation",
+    "quizTab": "Quiz",
+    "explanation": {
+      "intro": "Click on the Earth to set an epicenter and watch seismic waves propagate through Earth's interior. Blue = P-waves, Red = S-waves.",
+      "shadowZoneS": "No S-waves reach stations beyond 103°. S-waves (shear waves) cannot travel through liquid, so they are absorbed by the liquid outer core. The S-wave shadow zone is evidence that Earth's outer core is liquid.",
+      "shadowZoneP": "Between 103° and 143° lies the P-wave shadow zone. The large velocity change at the core-mantle boundary bends P-waves away from this region. PKP waves (P-waves through the core) emerge beyond 143°.",
+      "pkpArrival": "PKP wave detected! This P-wave traveled through the outer core and emerged on the far side of Earth, beyond the shadow zone.",
+      "observerInShadow": "This station ({{distance}}°) is in the S-wave shadow zone. Only P-waves (or PKP) can reach it.",
+      "bothWaves": "This station ({{distance}}°) receives both P-waves and S-waves. P-waves arrive first, followed by S-waves.",
+      "pFirst": "P-waves (Primary waves) travel faster than S-waves and arrive first at every distance. S-waves (Secondary waves) travel only through solid material."
+    }
+  },
+  "quiz": {
+    "title": "Quiz",
+    "start": "Start Quiz",
+    "next": "Next",
+    "finish": "Finish",
+    "correct": "Correct!",
+    "incorrect": "Incorrect",
+    "score": "{{correct}} / {{total}} correct",
+    "questions": {
+      "q1": {
+        "text": "Which seismic waves reach a station at an epicentral distance of 120°?",
+        "options": ["Both P and S waves", "P-wave only (PKP)", "S-wave only", "Neither wave arrives"],
+        "answer": 1,
+        "explanation": "Beyond 103°, S-waves cannot arrive (absorbed by the liquid outer core). The region 103°–143° is also the P direct-wave shadow zone, but PKP waves (core-crossing P-waves) can arrive beyond ~143°. In simplified educational models, PKP arrival is considered for this zone."
+      },
+      "q2": {
+        "text": "Why does the S-wave shadow zone exist?",
+        "options": ["The crust is too thin", "The outer core is liquid", "The inner core is solid", "The mantle is too thick"],
+        "answer": 1,
+        "explanation": "S-waves are shear (transverse) waves that cannot travel through liquids. The outer core is composed of liquid iron-nickel alloy, so S-waves are absorbed there. This creates the S-wave shadow zone beyond ~103°."
+      },
+      "q3": {
+        "text": "At an epicentral distance of 80°, which wave arrives first?",
+        "options": ["S-wave", "They arrive simultaneously", "P-wave", "It depends on the distance"],
+        "answer": 2,
+        "explanation": "P-waves always travel faster than S-waves (e.g., P: 6.0 km/s vs S: 3.5 km/s in the crust). P-waves always arrive first — hence the names Primary (P) and Secondary (S) waves."
+      },
+      "q4": {
+        "text": "What is the main reason seismic waves curve (refract) as they travel through Earth?",
+        "options": ["Earth is spherical", "Wave velocity changes with depth", "Earth rotates", "Magnetic field effects"],
+        "answer": 1,
+        "explanation": "By Snell's Law, waves refract at boundaries where velocity changes. Inside Earth, increasing pressure and temperature change wave velocities continuously with depth, causing seismic rays to curve rather than travel in straight lines."
+      }
+    }
+  },
+  "shadowZone": {
+    "P": "P Shadow",
+    "S": "S Shadow"
+  }
+}
