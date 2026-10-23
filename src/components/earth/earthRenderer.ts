@@ -24,6 +24,9 @@ export interface DrawConfig {
 
 const SIDES = [1, -1] as const;
 
+/** Takeoff-angle spacing of the ray paths drawn inside the Earth. */
+const RAY_DRAW_SPACING_DEG = 4;
+
 function kmToPixel(km: number, earthPixelRadius: number): number {
   return (km / EARTH_RADIUS_KM) * earthPixelRadius;
 }
@@ -241,19 +244,20 @@ function drawRayPaths(
     ctx.globalAlpha = 1;
   };
 
-  const pStep = Math.max(1, Math.floor(state.rays.length / 2 / 22));
-  const sStart = state.rays.findIndex(r => r.phase === 'S' || r.phase === 'SKS');
-  const sStep = Math.max(1, Math.floor((state.rays.length - sStart) / 22));
-
-  for (let i = 0; i < state.rays.length; i++) {
-    const ray = state.rays[i];
-    if (ray.phase === 'P' || ray.phase === 'PKP' || ray.phase === 'PP') {
-      if (i % pStep !== 0) continue;
-      const color = ray.phase === 'PKP' ? WAVE_COLORS.PKP.stroke : WAVE_COLORS.P.stroke;
-      drawRay(ray, color, 0.42 * amplitude);
-    } else {
-      if (i % sStep !== 0) continue;
-      drawRay(ray, WAVE_COLORS.S.stroke, ray.isAbsorbed ? 0.14 : 0.4 * amplitude);
+  // Draw ~22 down-going rays per wave type at evenly spaced takeoff angles
+  // (the fan is refined unevenly, and up-going rays never leave the crust area).
+  const isP = (r: Ray) => r.phase === 'P' || r.phase === 'PKP' || r.phase === 'PP';
+  for (const rays of [state.rays.filter(isP), state.rays.filter(r => !isP(r))]) {
+    let nextTakeoff = 0;
+    for (const ray of rays) {
+      if (ray.takeoffAngleDeg >= 90) break;
+      if (ray.takeoffAngleDeg < nextTakeoff) continue;
+      nextTakeoff = ray.takeoffAngleDeg + RAY_DRAW_SPACING_DEG;
+      if (isP(ray)) {
+        drawRay(ray, ray.phase === 'PKP' ? WAVE_COLORS.PKP.stroke : WAVE_COLORS.P.stroke, 0.42 * amplitude);
+      } else {
+        drawRay(ray, WAVE_COLORS.S.stroke, ray.isAbsorbed ? 0.14 : 0.4 * amplitude);
+      }
     }
   }
 }
@@ -271,11 +275,14 @@ function drawWavefronts(
 
   const drawTips = (tips: RayTip[], color: string) => {
     if (tips.length < 2) return;
-    // Mirror and order by signed angle so the front is one continuous curve.
+    // Tips arrive in takeoff order (straight down → straight up), which runs
+    // along the front. Walk the mirrored side backwards, then the forward side,
+    // so the front is one continuous curve. (Sorting by angle would zigzag
+    // between the up-going and down-going halves of a deep quake's front.)
     const signed = [
-      ...tips.map(t => ({ ...t, signed: -t.angleDeg })),
+      ...[...tips].reverse().map(t => ({ ...t, signed: -t.angleDeg })),
       ...tips.map(t => ({ ...t, signed: t.angleDeg })),
-    ].sort((a, b) => a.signed - b.signed);
+    ];
 
     const pts = signed.map(t => ({
       ...radiusAngleToCanvas(t.radiusKm, epi + t.signed, center, earthPixelRadius),
