@@ -55,8 +55,6 @@ export interface ObserverPoint {
   id: string;
   surfaceAngleDeg: number; // degrees clockwise from top (epicenter reference)
   label: string;
-  /** Which side of the epicenter the station sits on in the cross-section. */
-  side: 1 | -1;
   arrivals: ObserverArrival[];
   inShadowZone: { P: boolean; S: boolean };
 }
@@ -87,7 +85,7 @@ export interface SimulationState {
 
 export type SimulationAction =
   | { type: 'SET_EPICENTER'; epicenter: EpicenterConfig }
-  | { type: 'ADD_OBSERVER'; angleDeg: number; side: 1 | -1 }
+  | { type: 'ADD_OBSERVER'; angleDeg: number }
   | { type: 'REMOVE_OBSERVER'; id: string }
   | { type: 'SELECT_OBSERVER'; id: string | null }
   | { type: 'PLAY' }

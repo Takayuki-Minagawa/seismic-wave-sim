@@ -1,85 +1,98 @@
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { SimulationState } from '../../physics/types';
 import { generateExplanation } from './explanationEngine';
+import { QuizFrame } from './QuizFrame';
 
 interface LearningPanelProps {
   state: SimulationState;
 }
 
-/** Context-aware explanation from the guide character plus wave basics. */
 export function LearningPanel({ state }: LearningPanelProps) {
   const { t } = useTranslation();
+  const [activeTab, setActiveTab] = useState<'explanation' | 'quiz'>('explanation');
+
   const explanation = generateExplanation(state);
-  const { pShadowStart, pShadowEnd, sShadowStart } = state.shadowZone;
 
   return (
-    <div className="flex flex-col gap-4 p-4">
-      {/* Guide speech bubble */}
-      <div className="flex items-start gap-3">
-        <div className="flex flex-shrink-0 flex-col items-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-300 to-indigo-500 text-2xl shadow-lg shadow-indigo-500/30 animate-float">
-            🐟
-          </div>
-          <span className="mt-1 text-[10px] font-bold text-slate-500 dark:text-slate-400">{t('learning.guide')}</span>
-        </div>
-        <div
-          key={explanation.key}
-          className="relative flex-1 rounded-2xl rounded-tl-sm bg-white/80 p-3 shadow-sm ring-1 ring-slate-900/5 animate-pop-in dark:bg-white/10 dark:ring-white/10"
+    <div className="flex flex-col gap-2 p-3 h-full overflow-y-auto">
+      <h2 className="text-sm font-bold text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700 pb-1 flex-shrink-0">
+        {t('learning.title')}
+      </h2>
+
+      {/* Tabs */}
+      <div className="flex border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+        <button
+          onClick={() => setActiveTab('explanation')}
+          className={`text-xs px-3 py-1.5 font-medium transition-colors border-b-2 -mb-px ${
+            activeTab === 'explanation'
+              ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+              : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+          }`}
         >
-          <p className="text-[13px] leading-relaxed text-slate-700 dark:text-slate-100">
-            {t(explanation.key, explanation.vars ?? {})}
-          </p>
-        </div>
+          {t('learning.explanationTab')}
+        </button>
+        <button
+          onClick={() => setActiveTab('quiz')}
+          className={`text-xs px-3 py-1.5 font-medium transition-colors border-b-2 -mb-px ${
+            activeTab === 'quiz'
+              ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+              : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+          }`}
+        >
+          {t('learning.quizTab')}
+        </button>
       </div>
 
-      {/* Wave basics */}
-      <div className="flex flex-col gap-2">
-        <h3 className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-          🌊 {t('learning.basics')}
-        </h3>
-        <div className="grid grid-cols-2 gap-2">
-          <div className="rounded-2xl bg-sky-500/10 p-3 ring-1 ring-sky-500/20">
-            <div className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-full bg-pwave shadow-[0_0_8px_#38bdf8]" />
-              <span className="text-sm font-extrabold text-sky-700 dark:text-sky-300">{t('learning.pTitle')}</span>
+      {/* Tab content */}
+      <div className="flex-1 overflow-y-auto">
+        {activeTab === 'explanation' ? (
+          <div className="flex flex-col gap-3">
+            {/* Context explanation */}
+            <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 border-l-4 border-blue-400">
+              <p className="text-xs text-blue-800 dark:text-blue-200 leading-relaxed">
+                {t(explanation.key, explanation.vars ?? {})}
+              </p>
             </div>
-            {/* Compression wave pictogram */}
-            <svg viewBox="0 0 100 16" className="my-2 h-4 w-full text-sky-500">
-              {[4, 8, 11, 13, 15, 22, 31, 40, 44, 47, 49, 51, 58, 67, 76, 80, 83, 85, 87, 94].map(x => (
-                <line key={x} x1={x} x2={x} y1={2} y2={14} stroke="currentColor" strokeWidth={1.4} />
-              ))}
-            </svg>
-            <p className="text-[11px] text-slate-600 dark:text-slate-300">{t('learning.pType')}</p>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400">🧱💧💨 {t('learning.pMedium')}</p>
-            <p className="mt-1 text-[11px] font-bold text-sky-700 dark:text-sky-300">⚡ {t('learning.pSpeed')}</p>
-          </div>
-          <div className="rounded-2xl bg-rose-500/10 p-3 ring-1 ring-rose-500/20">
-            <div className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-full bg-swave shadow-[0_0_8px_#fb7185]" />
-              <span className="text-sm font-extrabold text-rose-700 dark:text-rose-300">{t('learning.sTitle')}</span>
+
+            {/* Quick facts */}
+            <div className="flex flex-col gap-2">
+              <h3 className="text-xs font-semibold text-gray-600 dark:text-gray-400">波の基本</h3>
+              <div className="grid grid-cols-2 gap-1.5">
+                <div className="bg-blue-50 dark:bg-blue-900/20 rounded p-1.5 text-center">
+                  <div className="text-xs font-bold text-blue-600 dark:text-blue-400">P波</div>
+                  <div className="text-xs text-gray-600 dark:text-gray-400">縦波 (疎密波)</div>
+                  <div className="text-xs text-gray-500 dark:text-gray-500">固体・液体</div>
+                </div>
+                <div className="bg-red-50 dark:bg-red-900/20 rounded p-1.5 text-center">
+                  <div className="text-xs font-bold text-red-600 dark:text-red-400">S波</div>
+                  <div className="text-xs text-gray-600 dark:text-gray-400">横波 (せん断波)</div>
+                  <div className="text-xs text-gray-500 dark:text-gray-500">固体のみ</div>
+                </div>
+              </div>
+
+              <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 leading-relaxed">
+                <p>🌐 <strong>操作方法:</strong></p>
+                <ul className="mt-1 ml-2 space-y-0.5">
+                  <li>• クリック/ドラッグ → 震源設定</li>
+                  <li>• ダブルクリック → 観測点追加</li>
+                  <li>• 再生ボタン → アニメーション開始</li>
+                </ul>
+              </div>
             </div>
-            {/* Shear wave pictogram */}
-            <svg viewBox="0 0 100 16" className="my-2 h-4 w-full text-rose-500">
-              <path d="M0 8 Q 6 0 12.5 8 T 25 8 T 37.5 8 T 50 8 T 62.5 8 T 75 8 T 87.5 8 T 100 8" fill="none" stroke="currentColor" strokeWidth={1.8} />
-            </svg>
-            <p className="text-[11px] text-slate-600 dark:text-slate-300">{t('learning.sType')}</p>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400">🧱 {t('learning.sMedium')}</p>
-            <p className="mt-1 text-[11px] font-bold text-rose-700 dark:text-rose-300">🐢 {t('learning.sSpeed')}</p>
+
+            {/* Shadow zone info when relevant */}
+            {(state.shadowZone.pShadowStart < 180) && (
+              <div className="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-2 text-xs text-orange-800 dark:text-orange-200">
+                <p className="font-semibold mb-1">シャドウゾーン</p>
+                <p>P波: {state.shadowZone.pShadowStart.toFixed(0)}°–{state.shadowZone.pShadowEnd.toFixed(0)}°</p>
+                <p>S波: {state.shadowZone.sShadowStart.toFixed(0)}° 以遠</p>
+              </div>
+            )}
           </div>
-        </div>
-      </div>
-
-      {/* Shadow zones */}
-      <div className="rounded-2xl bg-orange-500/10 p-3 ring-1 ring-orange-500/20">
-        <p className="mb-1 text-xs font-extrabold text-orange-700 dark:text-orange-300">🌑 {t('learning.shadowTitle')}</p>
-        <p className="text-xs text-slate-700 dark:text-slate-200">{t('learning.shadowP', { from: pShadowStart, to: pShadowEnd })}</p>
-        <p className="text-xs text-slate-700 dark:text-slate-200">{t('learning.shadowS', { from: sShadowStart })}</p>
-      </div>
-
-      {/* Trivia */}
-      <div className="rounded-2xl border border-dashed border-violet-400/40 p-3">
-        <p className="mb-1 text-xs font-extrabold text-violet-600 dark:text-violet-300">💡 {t('learning.trivia')}</p>
-        <p className="text-xs leading-relaxed text-slate-600 dark:text-slate-300">{t('learning.triviaBody')}</p>
+        ) : (
+          <QuizFrame />
+        )}
       </div>
     </div>
   );

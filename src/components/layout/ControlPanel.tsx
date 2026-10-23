@@ -1,16 +1,16 @@
 import { useTranslation } from 'react-i18next';
 import { SimulationState, EpicenterConfig } from '../../physics/types';
 import { Slider } from '../common/Slider';
+import { IconButton } from '../common/IconButton';
 import { ShadowZoneBadge } from '../common/ShadowZoneBadge';
-import { QuakeButton, QuakePhase } from '../common/QuakeButton';
 import { PRESETS } from '../../data/presets';
-import { WAVE_COLORS } from '../../utils/colorScale';
+import { formatTime } from '../../utils/formatters';
 
 interface ControlPanelProps {
   state: SimulationState;
-  phase: QuakePhase;
-  onQuake: () => void;
   onEpicenterChange: (config: EpicenterConfig) => void;
+  onPlay: () => void;
+  onPause: () => void;
   onReset: () => void;
   onSetSpeed: (m: number) => void;
   onAddObserver: () => void;
@@ -19,21 +19,13 @@ interface ControlPanelProps {
   onLoadPreset: (epicenter: EpicenterConfig, observerAngles: number[]) => void;
 }
 
-const SPEED_OPTIONS = [10, 30, 60, 120];
-
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return (
-    <h3 className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-      {children}
-    </h3>
-  );
-}
+const SPEED_OPTIONS = [0.25, 0.5, 1, 2, 4];
 
 export function ControlPanel({
   state,
-  phase,
-  onQuake,
   onEpicenterChange,
+  onPlay,
+  onPause,
   onReset,
   onSetSpeed,
   onAddObserver,
@@ -42,80 +34,90 @@ export function ControlPanel({
   onLoadPreset,
 }: ControlPanelProps) {
   const { t } = useTranslation();
-  const { depthKm, magnitudeM } = state.epicenter;
-
-  const depthHint = depthKm < 70 ? t('controls.depthShallow') : depthKm < 300 ? t('controls.depthIntermediate') : t('controls.depthDeep');
-  const magHint = magnitudeM < 6 ? t('controls.magSmall') : magnitudeM < 8 ? t('controls.magStrong') : t('controls.magGreat');
 
   return (
-    <div className="scroll-thin flex h-full flex-col gap-4 overflow-y-auto p-4">
-      {/* Main action */}
-      <div className="flex gap-2">
-        <QuakeButton phase={phase} onClick={onQuake} className="flex-1" />
-        <button
-          onClick={onReset}
-          title={t('controls.reset')}
-          aria-label={t('controls.reset')}
-          className="flex w-11 items-center justify-center rounded-2xl bg-slate-200 text-slate-600 transition-colors hover:bg-slate-300 dark:bg-white/10 dark:text-slate-200 dark:hover:bg-white/20"
-        >
-          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
-        </button>
-      </div>
-
-      {/* Speed selector */}
-      <div className="flex flex-col gap-1.5">
-        <SectionTitle>⏩ {t('controls.speed')}</SectionTitle>
-        <div className="grid grid-cols-4 gap-1 rounded-xl bg-slate-200/70 p-1 dark:bg-white/5">
-          {SPEED_OPTIONS.map(s => (
-            <button
-              key={s}
-              onClick={() => onSetSpeed(s)}
-              className={`rounded-lg py-1 font-hud text-xs font-bold transition-all ${
-                state.speedMultiplier === s
-                  ? 'bg-white text-violet-600 shadow-sm dark:bg-violet-500 dark:text-white'
-                  : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white'
-              }`}
-            >
-              ×{s}
-            </button>
-          ))}
-        </div>
-      </div>
+    <div className="flex flex-col gap-3 p-3 overflow-y-auto h-full">
+      {/* Title */}
+      <h2 className="text-sm font-bold text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700 pb-1">
+        {t('controls.title')}
+      </h2>
 
       {/* Epicenter controls */}
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-2">
         <Slider
-          icon="⛏️"
           label={t('controls.depth')}
-          value={depthKm}
+          value={state.epicenter.depthKm}
           min={0}
           max={700}
           step={5}
           unit=" km"
-          hint={depthHint}
-          colors={['#fbbf24', '#f97316']}
           onChange={v => onEpicenterChange({ ...state.epicenter, depthKm: v })}
         />
         <Slider
-          icon="📈"
           label={t('controls.magnitude')}
-          value={magnitudeM}
+          value={state.epicenter.magnitudeM}
           min={1}
-          max={9.5}
+          max={9}
           step={0.1}
-          hint={magHint}
-          colors={['#fb7185', '#e11d48']}
           onChange={v => onEpicenterChange({ ...state.epicenter, magnitudeM: v })}
           formatValue={v => `M${v.toFixed(1)}`}
         />
       </div>
 
+      {/* Playback controls */}
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-gray-500 dark:text-gray-400">
+            {t('controls.time')}: <span className="font-mono text-gray-700 dark:text-gray-300">{formatTime(state.currentTimeSec)}</span>
+          </span>
+        </div>
+        <div className="flex gap-1.5">
+          <IconButton
+            onClick={state.isPlaying ? onPause : onPlay}
+            title={state.isPlaying ? t('controls.pause') : t('controls.play')}
+            variant="primary"
+            className="flex-1 text-xs"
+          >
+            {state.isPlaying ? (
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <rect x="5" y="4" width="3" height="12" rx="1" />
+                <rect x="12" y="4" width="3" height="12" rx="1" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.841z" />
+              </svg>
+            )}
+          </IconButton>
+          <IconButton onClick={onReset} title={t('controls.reset')}>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          </IconButton>
+        </div>
+
+        {/* Speed selector */}
+        <div className="flex gap-1">
+          {SPEED_OPTIONS.map(s => (
+            <button
+              key={s}
+              onClick={() => onSetSpeed(s)}
+              className={`flex-1 text-xs py-1 rounded transition-colors ${
+                state.speedMultiplier === s
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+              }`}
+            >
+              {s}x
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Presets */}
-      <div className="flex flex-col gap-1.5">
-        <SectionTitle>📜 {t('preset.title')}</SectionTitle>
-        <div className="flex flex-col gap-1.5">
+      <div className="flex flex-col gap-1">
+        <h3 className="text-xs font-semibold text-gray-600 dark:text-gray-400">{t('preset.title')}</h3>
+        <div className="flex flex-col gap-1">
           {PRESETS.map(preset => (
             <button
               key={preset.id}
@@ -129,92 +131,79 @@ export function ControlPanel({
                   preset.observerAngles,
                 )
               }
-              className="group flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white/60 px-2.5 py-2 text-left transition-all hover:-translate-y-0.5 hover:border-violet-300 hover:shadow-md dark:border-white/10 dark:bg-white/5 dark:hover:border-violet-400/50 dark:hover:bg-white/10"
+              className="text-left text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 transition-colors"
             >
-              <span className="text-2xl leading-none transition-transform group-hover:scale-110">{preset.flag}</span>
-              <span className="min-w-0">
-                <span className="block truncate text-xs font-bold text-slate-800 dark:text-slate-100">{t(preset.nameKey)}</span>
-                <span className="block text-[10px] text-slate-500 dark:text-slate-400">
-                  {t('preset.meta', { year: preset.year, m: preset.magnitudeM.toFixed(1), d: preset.depthKm })}
-                </span>
-              </span>
+              {t(preset.nameKey)}
             </button>
           ))}
         </div>
       </div>
 
       {/* Observer points */}
-      <div className="flex flex-1 flex-col gap-1.5">
+      <div className="flex flex-col gap-1 flex-1">
         <div className="flex items-center justify-between">
-          <SectionTitle>📡 {t('observer.title')} ({state.observers.length})</SectionTitle>
+          <h3 className="text-xs font-semibold text-gray-600 dark:text-gray-400">
+            {t('observer.title')} ({state.observers.length})
+          </h3>
           <button
             onClick={onAddObserver}
-            className="rounded-full bg-sky-500/15 px-2.5 py-0.5 text-xs font-bold text-sky-600 transition-colors hover:bg-sky-500/25 dark:text-sky-300"
+            className="text-xs px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
           >
-            ＋ {t('controls.addObserver')}
+            + {t('controls.addObserver')}
           </button>
         </div>
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-1 overflow-y-auto max-h-48">
           {state.observers.map(obs => {
             const isSelected = state.selectedObserverId === obs.id;
             const pArrival = obs.arrivals.find(a => a.phase === 'P');
             const sArrival = obs.arrivals.find(a => a.phase === 'S');
-            const pkpArrival = obs.arrivals.find(a => a.phase === 'PKP');
 
             return (
               <div
                 key={obs.id}
-                role="button"
-                tabIndex={0}
                 onClick={() => onSelectObserver(isSelected ? null : obs.id)}
-                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onSelectObserver(isSelected ? null : obs.id); }}
-                className={`flex cursor-pointer items-center gap-2.5 rounded-xl px-2.5 py-2 transition-all ${
+                className={`flex flex-col gap-0.5 px-2 py-1.5 rounded cursor-pointer transition-colors ${
                   isSelected
-                    ? 'bg-amber-400/15 ring-2 ring-amber-400'
-                    : 'bg-white/60 ring-1 ring-slate-200 hover:ring-slate-300 dark:bg-white/5 dark:ring-white/10 dark:hover:ring-white/20'
+                    ? 'bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-400'
+                    : 'bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700'
                 }`}
               >
-                <span className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-xs font-extrabold ${
-                  isSelected ? 'bg-amber-400 text-slate-900' : 'bg-slate-800 text-white dark:bg-white/15'
-                }`}>
-                  {obs.label}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 text-xs">
-                    <span className="font-hud font-bold text-slate-700 dark:text-slate-200">{obs.surfaceAngleDeg.toFixed(0)}°</span>
-                    {[
-                      { a: pArrival, label: 'P', color: WAVE_COLORS.P.stroke },
-                      { a: sArrival, label: 'S', color: WAVE_COLORS.S.stroke },
-                      { a: pkpArrival, label: 'PKP', color: WAVE_COLORS.PKP.stroke },
-                    ].filter(x => x.a).map(({ a, label, color }) => (
-                      <span
-                        key={label}
-                        className="font-hud text-[10px] font-bold transition-colors"
-                        style={{ color: a!.hasArrived ? color : undefined }}
-                      >
-                        <span className={a!.hasArrived ? '' : 'text-slate-400 dark:text-slate-500'}>
-                          {label} {a!.hasArrived ? `${a!.travelTimeSec.toFixed(0)}s` : '–'}
-                        </span>
-                      </span>
-                    ))}
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-gray-700 dark:text-gray-300">
+                    {t('observer.title')} {obs.label}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      {obs.surfaceAngleDeg.toFixed(0)}°
+                    </span>
+                    <button
+                      onClick={e => { e.stopPropagation(); onRemoveObserver(obs.id); }}
+                      className="text-gray-400 hover:text-red-500 transition-colors"
+                      aria-label={t('observer.remove')}
+                    >
+                      ×
+                    </button>
                   </div>
-                  <ShadowZoneBadge pShadow={obs.inShadowZone.P} sShadow={obs.inShadowZone.S} />
                 </div>
-                <button
-                  onClick={e => { e.stopPropagation(); onRemoveObserver(obs.id); }}
-                  className="rounded-full p-1 text-slate-400 transition-colors hover:bg-rose-500/15 hover:text-rose-500"
-                  aria-label={t('observer.remove')}
-                >
-                  <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeWidth={2.5} d="M6 6l12 12M18 6L6 18" />
-                  </svg>
-                </button>
+                <div className="flex gap-2 text-xs">
+                  {pArrival && (
+                    <span className={pArrival.hasArrived ? 'text-blue-500' : 'text-gray-400'}>
+                      P: {pArrival.hasArrived ? `${pArrival.travelTimeSec.toFixed(0)}s` : '–'}
+                    </span>
+                  )}
+                  {sArrival && (
+                    <span className={sArrival.hasArrived ? 'text-red-500' : 'text-gray-400'}>
+                      S: {sArrival.hasArrived ? `${sArrival.travelTimeSec.toFixed(0)}s` : '–'}
+                    </span>
+                  )}
+                </div>
+                <ShadowZoneBadge pShadow={obs.inShadowZone.P} sShadow={obs.inShadowZone.S} />
               </div>
             );
           })}
           {state.observers.length === 0 && (
-            <p className="rounded-xl border border-dashed border-slate-300 px-3 py-3 text-center text-xs text-slate-500 dark:border-white/15 dark:text-slate-400">
-              {t('observer.empty')}
+            <p className="text-xs text-gray-400 dark:text-gray-500 text-center py-2">
+              ダブルクリックで観測点を追加
             </p>
           )}
         </div>

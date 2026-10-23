@@ -53,14 +53,20 @@ export function canvasToRadiusAngle(
 export function epicentralToAbsAngle(
   epicentralDeg: number,
   epicenterAbsAngleDeg: number,
-  side: 1 | -1 = 1,
 ): number {
-  return (epicenterAbsAngleDeg + side * epicentralDeg + 360) % 360;
+  return (epicenterAbsAngleDeg + epicentralDeg + 360) % 360;
 }
 
-/** Signed angular offset (−180°, 180°] of a canvas angle from the epicenter. */
-export function signedOffsetFromEpicenter(absAngleDeg: number, epicenterAbsAngleDeg: number): number {
-  return ((absAngleDeg - epicenterAbsAngleDeg + 540) % 360) - 180;
+/**
+ * Given absolute canvas angle of observer and epicenter, compute epicentral distance (0–180°).
+ */
+export function absAngleToEpicentral(
+  observerAbsAngleDeg: number,
+  epicenterAbsAngleDeg: number,
+): number {
+  let diff = ((observerAbsAngleDeg - epicenterAbsAngleDeg) + 360) % 360;
+  if (diff > 180) diff = 360 - diff;
+  return diff;
 }
 
 /** Draw a filled arc path on a canvas context */

@@ -12,38 +12,54 @@
  */
 
 import { EARTH_LAYERS, getLayerAt, getVelocityAt } from '../data/earthModel';
-import { EARTH_RADIUS_KM, DEG_TO_RAD, RAD_TO_DEG } from './constants';
+import { EARTH_RADIUS_KM, DEG_TO_RAD, RAD_TO_DEG, INTEGRATION_STEPS } from './constants';
 import { Ray, RaySegment, WavePhase, WaveType } from './types';
 
 let rayIdCounter = 0;
 
-/**
- * Exact ray geometry inside a constant-velocity shell.
- *
- * With constant velocity the ray is a straight line whose closest approach
- * to the Earth's center is b = p·v (Snell's law in spherical form). Between
- * radii r1 and r2 (both >= b):
- *   path length = |√(r2² − b²) − √(r1² − b²)|,  time = length / v
- *   angle       = |acos(b / r2) − acos(b / r1)|
- */
+function simpsonIntegrate(
+  f: (r: number) => number,
+  a: number,
+  b: number,
+  n: number,
+): number {
+  if (Math.abs(b - a) < 0.001) return 0;
+  const steps = n % 2 === 0 ? n : n + 1;
+  const h = (b - a) / steps;
+  let sum = f(a) + f(b);
+  for (let i = 1; i < steps; i++) {
+    const r = a + i * h;
+    sum += (i % 2 === 0 ? 2 : 4) * f(r);
+  }
+  return (h / 3) * sum;
+}
+
 function integrateSegment(
   r1: number,
   r2: number,
   v: number,
   p: number,
+  steps: number,
 ): { dAngle: number; dTime: number } {
-  const b = p * v;
-  const leg = (r: number) => Math.sqrt(Math.max(0, r * r - b * b));
-  const theta = (r: number) => Math.acos(Math.min(1, b / Math.max(r, 1e-6)));
+  const sign = r2 > r1 ? 1 : -1; // ascending (+) or descending (-)
+  const [rMin, rMax] = r1 < r2 ? [r1, r2] : [r2, r1];
 
-  return {
-    dAngle: Math.abs(theta(r2) - theta(r1)),
-    dTime: Math.abs(leg(r2) - leg(r1)) / v,
+  const dAngleFn = (r: number) => {
+    const disc = r * r / (v * v) - p * p;
+    if (disc <= 0) return 0;
+    return p / (r * Math.sqrt(disc));
   };
-}
+  const dTimeFn = (r: number) => {
+    const disc = r * r / (v * v) - p * p;
+    if (disc <= 0) return 0;
+    return 1 / (v * Math.sqrt(disc));
+  };
 
-/** How long an S-wave is shown fading out at the core-mantle boundary (s). */
-const S_ABSORPTION_FADE_SEC = 90;
+  const dAngle = simpsonIntegrate(dAngleFn, rMin, rMax, steps);
+  const dTime = simpsonIntegrate(dTimeFn, rMin, rMax, steps);
+
+  return { dAngle: sign < 0 ? dAngle : dAngle, dTime };
+}
 
 /**
  * Trace a single ray from source with given takeoff angle.
@@ -54,9 +70,7 @@ function traceSingleRay(
   takeoffAngleDeg: number,
   waveType: WaveType,
 ): Ray | null {
-  // Rays leave downward, so a source exactly on a boundary belongs to the layer below.
-  const sourceProbeKm = sourceRadiusKm - 1e-6;
-  const v0 = getVelocityAt(sourceProbeKm, waveType);
+  const v0 = getVelocityAt(sourceRadiusKm, waveType);
   if (v0 === 0) return null;
 
   const takeoffRad = takeoffAngleDeg * DEG_TO_RAD;
@@ -69,7 +83,7 @@ function traceSingleRay(
   let isAbsorbed = false;
   const layersTraversed: string[] = [];
 
-  const sourceLayer = getLayerAt(sourceProbeKm);
+  const sourceLayer = getLayerAt(sourceRadiusKm);
   const currentLayerIdx = EARTH_LAYERS.findIndex(l => l.name === sourceLayer.name);
 
   // --- DESCENDING PHASE ---
@@ -87,26 +101,26 @@ function traceSingleRay(
     return -1;
   };
 
-  // Up-going rays (takeoff > 90°) skip the descent and only climb to the surface.
-  const goesUp = takeoffAngleDeg > 90;
-
   // Descend through layers
-  for (let li = goesUp ? EARTH_LAYERS.length : currentLayerIdx; li < EARTH_LAYERS.length; li++) {
+  for (let li = currentLayerIdx; li < EARTH_LAYERS.length; li++) {
     const layer = EARTH_LAYERS[li];
     const v = waveType === 'P' ? layer.pVelocity : layer.sVelocity;
 
-    // S-waves cannot enter the liquid outer core: they stall and fade at the boundary.
+    // Check S-wave absorption in outer core
     if (waveType === 'S' && layer.name === 'outerCore') {
+      const { dAngle, dTime } = integrateSegment(currentRadius, layer.innerRadius, layer.pVelocity, p, INTEGRATION_STEPS);
       segments.push({
         startRadius: currentRadius,
-        endRadius: currentRadius,
+        endRadius: layer.outerRadius,
         startAngle: totalAngle,
-        endAngle: totalAngle,
-        velocity: 0,
+        endAngle: totalAngle + dAngle,
+        velocity: layer.pVelocity,
         waveType,
         layerName: layer.name,
-        travelTime: S_ABSORPTION_FADE_SEC,
+        travelTime: dTime,
       });
+      totalAngle += dAngle;
+      totalTime += dTime;
       isAbsorbed = true;
       break;
     }
@@ -116,15 +130,11 @@ function traceSingleRay(
       break;
     }
 
-    // The ray cannot enter a layer whose turning radius lies above the
-    // boundary (post-critical incidence) — it turns back at the boundary.
-    if (p * v > currentRadius) break;
-
     // Check if ray turns in this layer
     const rTurn = findTurning(li, v);
     if (rTurn > 0) {
       // Descend to turning radius
-      const { dAngle: dA1, dTime: dT1 } = integrateSegment(currentRadius, rTurn, v, p);
+      const { dAngle: dA1, dTime: dT1 } = integrateSegment(currentRadius, rTurn, v, p, INTEGRATION_STEPS);
       const startAngle = totalAngle;
       totalAngle += dA1;
       totalTime += dT1;
@@ -146,7 +156,18 @@ function traceSingleRay(
     } else {
       // Cross entire layer to inner boundary
       const innerR = layer.innerRadius > 0 ? layer.innerRadius : 1;
-      const { dAngle, dTime } = integrateSegment(currentRadius, innerR, v, p);
+      // Check if p * v > r_inner (total reflection at next boundary?)
+      const nextLayerIdx = li + 1;
+      if (nextLayerIdx < EARTH_LAYERS.length) {
+        const nextLayer = EARTH_LAYERS[nextLayerIdx];
+        const vNext = waveType === 'P' ? nextLayer.pVelocity : nextLayer.sVelocity;
+        // If ray parameter would cause imaginary angle in next layer, turn here
+        if (vNext > 0 && p * vNext > layer.innerRadius) {
+          // Doesn't quite turn at boundary — trace to inner boundary and continue
+        }
+      }
+
+      const { dAngle, dTime } = integrateSegment(currentRadius, innerR, v, p, INTEGRATION_STEPS);
       const startAngle = totalAngle;
       totalAngle += dAngle;
       totalTime += dTime;
@@ -191,7 +212,7 @@ function traceSingleRay(
 
   for (const seg of downSegmentsReversed) {
     // Mirror segment: swap start/end radius, continue angle accumulation
-    const { dAngle, dTime } = integrateSegment(seg.endRadius, seg.startRadius, seg.velocity, p);
+    const { dAngle, dTime } = integrateSegment(seg.endRadius, seg.startRadius, seg.velocity, p, INTEGRATION_STEPS);
     const startAngle = totalAngle;
     totalAngle += dAngle;
     totalTime += dTime;
@@ -208,34 +229,7 @@ function traceSingleRay(
     });
   }
 
-  // --- UP-GOING LEG from the source depth to the surface (deep-focus quakes) ---
-  // The mirrored ascent above ends back at the source radius.
-  currentRadius = sourceRadiusKm;
-  for (let li = currentLayerIdx; li >= 0 && currentRadius < EARTH_RADIUS_KM; li--) {
-    const layer = EARTH_LAYERS[li];
-    const v = waveType === 'P' ? layer.pVelocity : layer.sVelocity;
-    const top = Math.min(layer.outerRadius, EARTH_RADIUS_KM);
-    if (top <= currentRadius || v === 0) continue;
-    const { dAngle, dTime } = integrateSegment(currentRadius, top, v, p);
-    const startAngle = totalAngle;
-    totalAngle += dAngle;
-    totalTime += dTime;
-    segments.push({
-      startRadius: currentRadius,
-      endRadius: top,
-      startAngle,
-      endAngle: totalAngle,
-      velocity: v,
-      waveType,
-      layerName: layer.name,
-      travelTime: dTime,
-    });
-    currentRadius = top;
-  }
-
-  // Epicentral distance folds back once a ray travels past the antipode.
-  const rawDeg = (totalAngle * RAD_TO_DEG) % 360;
-  const surfaceDeg = rawDeg > 180 ? 360 - rawDeg : rawDeg;
+  const surfaceDeg = totalAngle * RAD_TO_DEG;
 
   // Determine phase from layer traversal
   let phase: WavePhase = waveType === 'P' ? 'P' : 'S';
@@ -250,7 +244,7 @@ function traceSingleRay(
     takeoffAngleDeg,
     segments,
     totalTravelTime: totalTime,
-    surfaceAngleDeg: surfaceDeg,
+    surfaceAngleDeg: Math.min(surfaceDeg, 180),
     phase,
     isAbsorbed: false,
   };
@@ -264,49 +258,23 @@ export function computeRayFan(
   depthKm: number,
 ): { pRays: Ray[]; sRays: Ray[] } {
   const sourceRadius = EARTH_RADIUS_KM - depthKm;
-  return {
-    pRays: traceFan(sourceRadius, 'P', 3000),
-    sRays: traceFan(sourceRadius, 'S', 4000),
-  };
-}
+  const pRays: Ray[] = [];
+  const sRays: Ray[] = [];
 
-/** Neighbouring rays landing farther apart than this get extra rays in between. */
-const REFINE_STEP_DEG = 1.5;
-/** Max bisection depth per gap (0.25° / 2^7 ≈ 0.002°). */
-const REFINE_DEPTH = 7;
+  const angleStep = 89.0 / 180; // ~0.5° steps → 180 rays per wave type
+  for (let i = 0; i <= 180; i++) {
+    const takeoff = 0.5 + i * angleStep;
 
-/**
- * Trace a fan of rays in takeoff order: down-going rays (0.05°–89.75°) plus
- * up-going rays (90.25°–179.75°) that cover the cap above a deep focus.
- * Where neighbouring rays land far apart (near critical angles), the gap is
- * bisected so the travel-time curve can be followed without bridging branches.
- */
-function traceFan(sourceRadius: number, waveType: WaveType, maxTimeSec: number): Ray[] {
-  const takeoffs = [0.05];
-  for (let t = 0.5; t < 180; t += 0.25) {
-    if (t !== 90) takeoffs.push(t);
+    const pRay = traceSingleRay(sourceRadius, takeoff, 'P');
+    if (pRay && pRay.totalTravelTime > 0 && pRay.totalTravelTime < 3000) {
+      pRays.push(pRay);
+    }
+
+    const sRay = traceSingleRay(sourceRadius, takeoff, 'S');
+    if (sRay && sRay.totalTravelTime > 0 && sRay.totalTravelTime < 4000) {
+      sRays.push(sRay);
+    }
   }
 
-  const trace = (takeoff: number) => {
-    const ray = traceSingleRay(sourceRadius, takeoff, waveType);
-    return ray && ray.totalTravelTime > 0 && ray.totalTravelTime < maxTimeSec ? ray : null;
-  };
-
-  const refine = (a: Ray, b: Ray, depth: number): Ray[] => {
-    if (depth === 0 || a.isAbsorbed || b.isAbsorbed) return [];
-    if (Math.abs(a.surfaceAngleDeg - b.surfaceAngleDeg) <= REFINE_STEP_DEG) return [];
-    const mid = trace((a.takeoffAngleDeg + b.takeoffAngleDeg) / 2);
-    if (!mid) return [];
-    return [...refine(a, mid, depth - 1), mid, ...refine(mid, b, depth - 1)];
-  };
-
-  const rays: Ray[] = [];
-  for (const takeoff of takeoffs) {
-    const ray = trace(takeoff);
-    if (!ray) continue;
-    const prev = rays[rays.length - 1];
-    if (prev) rays.push(...refine(prev, ray, REFINE_DEPTH));
-    rays.push(ray);
-  }
-  return rays;
+  return { pRays, sRays };
 }

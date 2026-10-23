@@ -3,35 +3,28 @@
  * Used to adjust opacity/stroke-width of wavefront arcs.
  */
 export function waveAmplitude(magnitudeM: number): number {
-  // Magnitude scale: M1 → 0.35, M9 → 1.0 (keep small quakes visible)
-  return 0.35 + (magnitudeM - 1) / 8 * 0.65;
+  // Magnitude scale: M1 → 0.2, M9 → 1.0
+  return 0.2 + (magnitudeM - 1) / 8 * 0.8;
 }
 
 export const WAVE_COLORS = {
   P: {
-    stroke: '#38bdf8',      // sky-400
-    fill: 'rgba(56,189,248,0.15)',
+    stroke: '#3b82f6',      // blue-500
+    fill: 'rgba(59,130,246,0.15)',
   },
   S: {
-    stroke: '#fb7185',      // rose-400
-    fill: 'rgba(251,113,133,0.15)',
+    stroke: '#ef4444',      // red-500
+    fill: 'rgba(239,68,68,0.15)',
   },
   PKP: {
-    stroke: '#a78bfa',      // violet-400
-    fill: 'rgba(167,139,250,0.15)',
+    stroke: '#8b5cf6',      // violet-500
+    fill: 'rgba(139,92,246,0.15)',
   },
   PP: {
-    stroke: '#22d3ee',      // cyan-400
-    fill: 'rgba(34,211,238,0.15)',
+    stroke: '#06b6d4',      // cyan-500
+    fill: 'rgba(6,182,212,0.15)',
   },
 };
 
-export const SHADOW_ZONE_COLOR = 'rgba(244, 63, 94, 0.55)';
-export const SHADOW_ZONE_P_COLOR = 'rgba(251, 146, 60, 0.85)';
-
-/** Multiply the brightness of a #rrggbb color (factor > 1 lightens). */
-export function shade(hex: string, factor: number): string {
-  const n = parseInt(hex.slice(1), 16);
-  const ch = (shift: number) => Math.max(0, Math.min(255, Math.round(((n >> shift) & 255) * factor)));
-  return `rgb(${ch(16)}, ${ch(8)}, ${ch(0)})`;
-}
+export const SHADOW_ZONE_COLOR = 'rgba(239, 68, 68, 0.12)';
+export const SHADOW_ZONE_P_COLOR = 'rgba(251, 146, 60, 0.12)';

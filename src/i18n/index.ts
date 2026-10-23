@@ -20,10 +20,4 @@ i18n
     },
   });
 
-const syncHtmlLang = (lng: string) => {
-  document.documentElement.lang = lng.startsWith('en') ? 'en' : 'ja';
-};
-syncHtmlLang(i18n.language ?? 'ja');
-i18n.on('languageChanged', syncHtmlLang);
-
 export default i18n;

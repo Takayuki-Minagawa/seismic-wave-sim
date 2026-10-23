@@ -13,12 +13,12 @@ export function ShadowZoneBadge({ pShadow, sShadow }: ShadowZoneBadgeProps) {
   return (
     <div className="flex flex-wrap gap-1">
       {pShadow && (
-        <span className="rounded-full bg-orange-500/15 px-1.5 py-0.5 text-[10px] font-bold text-orange-600 dark:text-orange-300">
+        <span className="px-1.5 py-0.5 text-xs rounded bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 font-medium">
           {t('shadowZone.P')}
         </span>
       )}
       {sShadow && (
-        <span className="rounded-full bg-rose-500/15 px-1.5 py-0.5 text-[10px] font-bold text-rose-600 dark:text-rose-300">
+        <span className="px-1.5 py-0.5 text-xs rounded bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 font-medium">
           {t('shadowZone.S')}
         </span>
       )}
