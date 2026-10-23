@@ -1,24 +1,30 @@
 import { useReducer, useCallback, useRef, useEffect, useLayoutEffect } from 'react';
-import { SimulationState, SimulationAction, EpicenterConfig, ObserverPoint, ObserverArrival, TravelTimeDatum } from '../physics/types';
+import { SimulationState, SimulationAction, EpicenterConfig, ObserverPoint, ObserverArrival, TravelTimeDatum, Ray } from '../physics/types';
 import { computeRayFan } from '../physics/rayTracer';
 import { buildTravelTimeCurve, interpolateTravelTime } from '../physics/travelTimeCalc';
 import { computeShadowZone, isInPShadowZone, isInSShadowZone, isPKPValid } from '../physics/shadowZone';
 
 const DEFAULT_EPICENTER: EpicenterConfig = {
-  surfaceAngleDeg: 90,
+  // Epicenter at the top, like the classic textbook cross-section.
+  surfaceAngleDeg: 0,
   depthKm: 0,
   magnitudeM: 7.0,
 };
 
 let observerIdCounter = 0;
 
-function createObserver(epicentralDeg: number, shadowZone: SimulationState['shadowZone']): ObserverPoint {
+function createObserver(
+  epicentralDeg: number,
+  shadowZone: SimulationState['shadowZone'],
+  side: 1 | -1 = 1,
+): ObserverPoint {
   observerIdCounter++;
   const label = String.fromCharCode(64 + (observerIdCounter % 26 || 26));
   return {
     id: `obs-${observerIdCounter}`,
     surfaceAngleDeg: Math.max(1, Math.min(179, epicentralDeg)),
     label,
+    side,
     arrivals: [],
     inShadowZone: {
       P: isInPShadowZone(epicentralDeg, shadowZone),
@@ -27,13 +33,22 @@ function createObserver(epicentralDeg: number, shadowZone: SimulationState['shad
   };
 }
 
+// Rays depend only on depth; cache the last result so dragging the epicenter is cheap.
+let rayCache: { depthKm: number; rays: Ray[]; travelTimeCurve: TravelTimeDatum[] } | null = null;
+
+function raysForDepth(depthKm: number) {
+  if (rayCache?.depthKm !== depthKm) {
+    const { pRays, sRays } = computeRayFan(depthKm);
+    rayCache = { depthKm, rays: [...pRays, ...sRays], travelTimeCurve: buildTravelTimeCurve(pRays, sRays) };
+  }
+  return rayCache;
+}
+
 function computeStateFromEpicenter(
   epicenter: EpicenterConfig,
   existingObservers: ObserverPoint[],
 ): Pick<SimulationState, 'rays' | 'travelTimeCurve' | 'shadowZone' | 'observers'> {
-  const { pRays, sRays } = computeRayFan(epicenter.depthKm);
-  const allRays = [...pRays, ...sRays];
-  const travelTimeCurve = buildTravelTimeCurve(pRays, sRays);
+  const { rays: allRays, travelTimeCurve } = raysForDepth(epicenter.depthKm);
   const shadowZone = computeShadowZone();
 
   const observers = existingObservers.map(obs => ({
@@ -51,7 +66,8 @@ function computeStateFromEpicenter(
 /**
  * Compute arrival list for one observer.
  *
- * PKP is only included when the epicentral distance is >= P_SHADOW_END_DEG
+ * Direct P/S are dropped inside their shadow zones, and PKP is only
+ * included when the epicentral distance is >= P_SHADOW_END_DEG
  * (i.e. beyond the advertised shadow zone). This keeps arrivals, graph
  * overlays, and learning copy consistent with the same 103°–143° boundary
  * (Issue #4).
@@ -63,12 +79,18 @@ function computeObserverArrivals(
 ): ObserverArrival[] {
   const arrivals: ObserverArrival[] = [];
 
-  const pTime = interpolateTravelTime(epicentralDeg, 'P', travelTimeCurve);
+  // Direct P and S are hidden inside their teaching-model shadow zones.
+  const shadowZone = computeShadowZone();
+  const pTime = isInPShadowZone(epicentralDeg, shadowZone)
+    ? null
+    : interpolateTravelTime(epicentralDeg, 'P', travelTimeCurve);
   if (pTime !== null) {
     arrivals.push({ phase: 'P', travelTimeSec: pTime, hasArrived: currentTimeSec >= pTime });
   }
 
-  const sTime = interpolateTravelTime(epicentralDeg, 'S', travelTimeCurve);
+  const sTime = isInSShadowZone(epicentralDeg, shadowZone)
+    ? null
+    : interpolateTravelTime(epicentralDeg, 'S', travelTimeCurve);
   if (sTime !== null) {
     arrivals.push({ phase: 'S', travelTimeSec: sTime, hasArrived: currentTimeSec >= sTime });
   }
@@ -84,6 +106,13 @@ function computeObserverArrivals(
   return arrivals;
 }
 
+/** Time after which every wave has reached the surface (plus a short tail). */
+export function simulationEndTime(curve: TravelTimeDatum[]): number {
+  let max = 0;
+  for (const d of curve) if (d.timeSec > max) max = d.timeSec;
+  return max + 60;
+}
+
 const initialState: SimulationState = (() => {
   const epicenter = DEFAULT_EPICENTER;
   const { rays, travelTimeCurve, shadowZone, observers } = computeStateFromEpicenter(epicenter, []);
@@ -95,7 +124,8 @@ const initialState: SimulationState = (() => {
     shadowZone,
     currentTimeSec: 0,
     isPlaying: false,
-    speedMultiplier: 1,
+    // Real travel times are tens of minutes; 30× keeps a full run under a minute.
+    speedMultiplier: 30,
     selectedObserverId: null,
   };
 })();
@@ -120,7 +150,7 @@ function simulationReducer(state: SimulationState, action: SimulationAction): Si
     }
 
     case 'ADD_OBSERVER': {
-      const newObs = createObserver(action.angleDeg, state.shadowZone);
+      const newObs = createObserver(action.angleDeg, state.shadowZone, action.side);
       const withArrivals: ObserverPoint = {
         ...newObs,
         arrivals: computeObserverArrivals(
@@ -160,7 +190,8 @@ function simulationReducer(state: SimulationState, action: SimulationAction): Si
       };
 
     case 'TICK': {
-      const newTime = state.currentTimeSec + action.dtSec * state.speedMultiplier;
+      const endTime = simulationEndTime(state.travelTimeCurve);
+      const newTime = Math.min(endTime, state.currentTimeSec + action.dtSec * state.speedMultiplier);
       const updatedObservers = state.observers.map(obs => ({
         ...obs,
         arrivals: obs.arrivals.map(a => ({
@@ -168,7 +199,12 @@ function simulationReducer(state: SimulationState, action: SimulationAction): Si
           hasArrived: a.hasArrived || newTime >= a.travelTimeSec,
         })),
       }));
-      return { ...state, currentTimeSec: newTime, observers: updatedObservers };
+      return {
+        ...state,
+        currentTimeSec: newTime,
+        observers: updatedObservers,
+        isPlaying: newTime < endTime,
+      };
     }
 
     case 'SET_SPEED':
@@ -234,8 +270,8 @@ export function useSimulation() {
     dispatch({ type: 'SET_EPICENTER', epicenter });
   }, []);
 
-  const addObserver = useCallback((angleDeg: number) => {
-    dispatch({ type: 'ADD_OBSERVER', angleDeg });
+  const addObserver = useCallback((angleDeg: number, side: 1 | -1 = 1) => {
+    dispatch({ type: 'ADD_OBSERVER', angleDeg, side });
   }, []);
 
   const removeObserver = useCallback((id: string) => {

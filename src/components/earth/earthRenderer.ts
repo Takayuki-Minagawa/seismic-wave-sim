@@ -1,218 +1,381 @@
 /**
  * Pure canvas drawing functions for the Earth cross-section view.
  * Called from requestAnimationFrame — NO React state access here.
+ *
+ * The ray fan is traced on one side of the epicenter only; because the
+ * model is spherically symmetric we mirror it to draw the full wavefield.
  */
 
 import { EARTH_LAYERS } from '../../data/earthModel';
-import { SimulationState, RaySegment } from '../../physics/types';
-import { WavefrontData, RayTip } from '../../physics/wavefront';
+import { SimulationState, RaySegment, Ray } from '../../physics/types';
+import { WavefrontData, RayTip, pointAlongSegment } from '../../physics/wavefront';
 import { EARTH_RADIUS_KM, DEG_TO_RAD } from '../../physics/constants';
 import { radiusAngleToCanvas, CanvasCenter, epicentralToAbsAngle, drawCircle } from '../../utils/geometry';
-import { WAVE_COLORS, SHADOW_ZONE_COLOR, SHADOW_ZONE_P_COLOR, waveAmplitude } from '../../utils/colorScale';
+import { WAVE_COLORS, SHADOW_ZONE_COLOR, SHADOW_ZONE_P_COLOR, waveAmplitude, shade } from '../../utils/colorScale';
 
 export interface DrawConfig {
   center: CanvasCenter;
   earthPixelRadius: number;
   isDark: boolean;
+  width: number;
+  height: number;
+  layerLabels: Record<string, string>;
 }
+
+const SIDES = [1, -1] as const;
+
+/** Takeoff-angle spacing of the ray paths drawn inside the Earth. */
+const RAY_DRAW_SPACING_DEG = 4;
 
 function kmToPixel(km: number, earthPixelRadius: number): number {
   return (km / EARTH_RADIUS_KM) * earthPixelRadius;
 }
 
-/** Draw the concentric Earth layers */
-function drawLayers(ctx: CanvasRenderingContext2D, config: DrawConfig): void {
-  const { center, earthPixelRadius, isDark } = config;
-  // Draw from outermost to innermost
-  for (const layer of [...EARTH_LAYERS].reverse()) {
-    const r = kmToPixel(layer.outerRadius, earthPixelRadius);
-    drawCircle(ctx, center.x, center.y, r);
-    ctx.fillStyle = isDark ? layer.darkColor : layer.color;
+// Deterministic starfield (normalized coordinates) shared by all frames.
+const STARS = Array.from({ length: 180 }, (_, i) => {
+  const rand = (n: number) => {
+    const x = Math.sin(i * 12.9898 + n * 78.233) * 43758.5453;
+    return x - Math.floor(x);
+  };
+  return { x: rand(1), y: rand(2), r: 0.4 + rand(3) * 1.3, phase: rand(4) * Math.PI * 2, speed: 0.5 + rand(5) * 1.5 };
+});
+
+function drawBackground(ctx: CanvasRenderingContext2D, config: DrawConfig, now: number): void {
+  const { width, height, isDark } = config;
+  if (!isDark) {
+    const g = ctx.createLinearGradient(0, 0, 0, height);
+    g.addColorStop(0, '#dbeafe');
+    g.addColorStop(1, '#eef2ff');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, width, height);
+    return;
+  }
+
+  const g = ctx.createRadialGradient(width * 0.5, height * 0.45, 0, width * 0.5, height * 0.5, Math.max(width, height) * 0.8);
+  g.addColorStop(0, '#0d1638');
+  g.addColorStop(1, '#03050f');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, width, height);
+
+  for (const star of STARS) {
+    const twinkle = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(now * 0.001 * star.speed + star.phase));
+    ctx.globalAlpha = twinkle * 0.8;
+    ctx.fillStyle = '#e0e7ff';
+    ctx.beginPath();
+    ctx.arc(star.x * width, star.y * height, star.r, 0, Math.PI * 2);
     ctx.fill();
   }
-  // Redraw layer borders
+  ctx.globalAlpha = 1;
+}
+
+/** Soft atmosphere halo around the planet. */
+function drawAtmosphere(ctx: CanvasRenderingContext2D, config: DrawConfig): void {
+  const { center, earthPixelRadius: R, isDark } = config;
+  const g = ctx.createRadialGradient(center.x, center.y, R * 0.98, center.x, center.y, R * 1.16);
+  g.addColorStop(0, isDark ? 'rgba(56,189,248,0.45)' : 'rgba(59,130,246,0.35)');
+  g.addColorStop(0.4, isDark ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.12)');
+  g.addColorStop(1, 'rgba(99,102,241,0)');
+  ctx.fillStyle = g;
+  drawCircle(ctx, center.x, center.y, R * 1.16);
+  ctx.fill();
+}
+
+/** Draw the concentric Earth layers with radial shading. */
+function drawLayers(ctx: CanvasRenderingContext2D, config: DrawConfig): void {
+  const { center, earthPixelRadius, isDark } = config;
+  // Outermost first: each layer is a full disc painted over the previous one.
+  for (const layer of EARTH_LAYERS) {
+    const outer = kmToPixel(layer.outerRadius, earthPixelRadius);
+    const inner = kmToPixel(layer.innerRadius, earthPixelRadius);
+    const base = isDark ? layer.darkColor : layer.color;
+    const g = ctx.createRadialGradient(center.x, center.y, inner, center.x, center.y, outer);
+    g.addColorStop(0, shade(base, layer.name === 'innerCore' ? 1.45 : 1.18));
+    g.addColorStop(1, shade(base, 0.82));
+    drawCircle(ctx, center.x, center.y, outer);
+    ctx.fillStyle = g;
+    ctx.fill();
+  }
+
+  // Hot glow at the very center
+  const coreR = kmToPixel(EARTH_LAYERS[EARTH_LAYERS.length - 1].outerRadius, earthPixelRadius);
+  const glow = ctx.createRadialGradient(center.x, center.y, 0, center.x, center.y, coreR * 1.2);
+  glow.addColorStop(0, 'rgba(255,255,230,0.7)');
+  glow.addColorStop(1, 'rgba(255,240,180,0)');
+  ctx.fillStyle = glow;
+  drawCircle(ctx, center.x, center.y, coreR * 1.2);
+  ctx.fill();
+
   for (const layer of EARTH_LAYERS) {
     const r = kmToPixel(layer.outerRadius, earthPixelRadius);
     drawCircle(ctx, center.x, center.y, r);
-    ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.2)';
+    ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.18)';
     ctx.lineWidth = 1;
     ctx.stroke();
   }
 }
 
-/** Draw shadow zone arcs on the surface */
+/** Layer names written along the lower-left radius (opposite the default epicenter). */
+function drawLayerLabels(ctx: CanvasRenderingContext2D, config: DrawConfig): void {
+  const { center, earthPixelRadius, layerLabels } = config;
+  if (earthPixelRadius < 140) return;
+  const fontSize = Math.max(10, Math.min(13, earthPixelRadius / 22));
+  ctx.font = `600 ${fontSize}px 'M PLUS Rounded 1c', sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  for (const layer of EARTH_LAYERS) {
+    // Crust and upper mantle are too thin to label legibly.
+    if (layer.name === 'crust' || layer.name === 'upperMantle') continue;
+    const midKm = layer.name === 'innerCore' ? 0 : (layer.outerRadius + layer.innerRadius) / 2;
+    const pos = radiusAngleToCanvas(midKm, 205, center, earthPixelRadius);
+    const label = layerLabels[layer.name] ?? layer.name;
+    const w = ctx.measureText(label).width + 10;
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    roundRect(ctx, pos.x - w / 2, pos.y - fontSize * 0.8, w, fontSize * 1.6, fontSize * 0.8);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.92)';
+    ctx.fillText(label, pos.x, pos.y + 0.5);
+  }
+  ctx.textBaseline = 'alphabetic';
+}
+
+/** Shadow zone arcs plus a "protractor" of epicentral distances. */
 function drawShadowZones(
   ctx: CanvasRenderingContext2D,
   config: DrawConfig,
-  epicenterAbsAngleDeg: number,
-  pShadowStart: number,
-  pShadowEnd: number,
-  sShadowStart: number,
+  state: SimulationState,
 ): void {
-  const { center, earthPixelRadius } = config;
-  const r = earthPixelRadius + 4;
+  const { center, earthPixelRadius, isDark } = config;
+  const epi = state.epicenter.surfaceAngleDeg;
+  const { pShadowStart, pShadowEnd, sShadowStart } = state.shadowZone;
+  const r = earthPixelRadius + 6;
 
-  const drawArc = (startDeg: number, endDeg: number, color: string, both: boolean) => {
-    const startRad = (epicenterAbsAngleDeg + startDeg - 90) * DEG_TO_RAD;
-    const endRad = (epicenterAbsAngleDeg + endDeg - 90) * DEG_TO_RAD;
-    const negStartRad = (epicenterAbsAngleDeg - startDeg - 90) * DEG_TO_RAD;
-    const negEndRad = (epicenterAbsAngleDeg - endDeg - 90) * DEG_TO_RAD;
-
-    ctx.beginPath();
-    ctx.arc(center.x, center.y, r, startRad, endRad);
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 8;
-    ctx.stroke();
-
-    if (both) {
+  const arc = (fromDeg: number, toDeg: number, color: string, width: number) => {
+    for (const side of SIDES) {
+      const a0 = (epi + side * fromDeg - 90) * DEG_TO_RAD;
+      const a1 = (epi + side * toDeg - 90) * DEG_TO_RAD;
       ctx.beginPath();
-      ctx.arc(center.x, center.y, r, negEndRad, negStartRad);
+      ctx.arc(center.x, center.y, r, Math.min(a0, a1), Math.max(a0, a1));
       ctx.strokeStyle = color;
-      ctx.lineWidth = 8;
+      ctx.lineWidth = width;
+      ctx.lineCap = 'round';
       ctx.stroke();
     }
   };
 
-  // S shadow (red)
-  drawArc(sShadowStart, 180, SHADOW_ZONE_COLOR, true);
-  // P shadow (orange) — overlaps part of S shadow visually
-  drawArc(pShadowStart, Math.min(pShadowEnd, 180), SHADOW_ZONE_P_COLOR, true);
+  arc(sShadowStart, 180, SHADOW_ZONE_COLOR, 7);
+  arc(pShadowStart, Math.min(pShadowEnd, 180), SHADOW_ZONE_P_COLOR, 7);
+  ctx.lineCap = 'butt';
+
+  // Distance ticks every 30°, emphasised at the shadow boundaries.
+  const tickColor = isDark ? 'rgba(203,213,225,0.55)' : 'rgba(51,65,85,0.55)';
+  const fontSize = Math.max(9, Math.min(11, earthPixelRadius / 26));
+  ctx.font = `600 ${fontSize}px 'Orbitron', sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const ticks = [30, 60, 90, 120, 150, 180, pShadowStart, pShadowEnd];
+  for (const deg of ticks) {
+    const isBoundary = deg === pShadowStart || deg === pShadowEnd;
+    for (const side of deg === 180 ? [1] : SIDES) {
+      const abs = epi + side * deg;
+      const p0 = radiusAngleToCanvas(EARTH_RADIUS_KM * 1.0, abs, center, earthPixelRadius);
+      const p1 = radiusAngleToCanvas(EARTH_RADIUS_KM * (isBoundary ? 1.07 : 1.045), abs, center, earthPixelRadius);
+      ctx.beginPath();
+      ctx.moveTo(p0.x, p0.y);
+      ctx.lineTo(p1.x, p1.y);
+      ctx.strokeStyle = isBoundary ? '#fb923c' : tickColor;
+      ctx.lineWidth = isBoundary ? 2 : 1;
+      ctx.stroke();
+
+      if (earthPixelRadius > 120) {
+        const pl = radiusAngleToCanvas(EARTH_RADIUS_KM * 1.12, abs, center, earthPixelRadius);
+        ctx.fillStyle = isBoundary ? '#fb923c' : tickColor;
+        ctx.fillText(`${Math.round(deg)}°`, pl.x, pl.y);
+      }
+    }
+  }
+  ctx.textBaseline = 'alphabetic';
 }
 
-/** Draw all ray segments up to current time */
+function rayPoint(
+  config: DrawConfig,
+  epi: number,
+  side: number,
+  radiusKm: number,
+  angleRad: number,
+) {
+  return radiusAngleToCanvas(radiusKm, epi + side * angleRad * (180 / Math.PI), config.center, config.earthPixelRadius);
+}
+
+/** Draw all ray segments up to the current time. */
 function drawRayPaths(
   ctx: CanvasRenderingContext2D,
   config: DrawConfig,
   state: SimulationState,
   amplitude: number,
 ): void {
-  const { center, earthPixelRadius } = config;
-  const epicenterAbsAngleDeg = state.epicenter.surfaceAngleDeg;
+  const epi = state.epicenter.surfaceAngleDeg;
+  if (state.currentTimeSec <= 0) return;
 
-  const drawRay = (ray: { segments: RaySegment[]; phase: string }, color: string, alpha: number) => {
-    let elapsed = 0;
+  const drawRay = (ray: Ray, color: string, alpha: number) => {
     ctx.strokeStyle = color;
-    ctx.lineWidth = 1.2;
+    ctx.lineWidth = 1.3;
     ctx.globalAlpha = alpha;
 
-    for (const seg of ray.segments) {
-      // Only draw segments the wave has reached
-      if (elapsed > state.currentTimeSec) break;
-
-      const segFrac = Math.min(1, (state.currentTimeSec - elapsed) / Math.max(seg.travelTime, 0.001));
-
-      const startAbsAngle = epicenterAbsAngleDeg + seg.startAngle * (180 / Math.PI);
-      const endAbsAngle = epicenterAbsAngleDeg + (seg.startAngle + (seg.endAngle - seg.startAngle) * segFrac) * (180 / Math.PI);
-
-      const p0 = radiusAngleToCanvas(seg.startRadius, startAbsAngle, center, earthPixelRadius);
-      const p1 = radiusAngleToCanvas(
-        seg.startRadius + (seg.endRadius - seg.startRadius) * segFrac,
-        endAbsAngle,
-        center,
-        earthPixelRadius,
-      );
-
+    for (const side of SIDES) {
+      let elapsed = 0;
       ctx.beginPath();
-      ctx.moveTo(p0.x, p0.y);
-      ctx.lineTo(p1.x, p1.y);
+      let started = false;
+      for (const seg of ray.segments as RaySegment[]) {
+        if (elapsed > state.currentTimeSec) break;
+        const segFrac = Math.min(1, (state.currentTimeSec - elapsed) / Math.max(seg.travelTime, 0.001));
+        const p0 = rayPoint(config, epi, side, seg.startRadius, seg.startAngle);
+        const tip = pointAlongSegment(seg, segFrac);
+        const p1 = rayPoint(config, epi, side, tip.radiusKm, tip.angleRad);
+        if (!started) {
+          ctx.moveTo(p0.x, p0.y);
+          started = true;
+        }
+        ctx.lineTo(p1.x, p1.y);
+        elapsed += seg.travelTime;
+      }
       ctx.stroke();
-
-      elapsed += seg.travelTime;
     }
     ctx.globalAlpha = 1;
   };
 
-  // Draw P rays (show only some for clarity)
-  const pStep = Math.max(1, Math.floor(state.rays.length / 2 / 20));
-  const sStart = state.rays.findIndex(r => r.phase === 'S' || r.phase === 'SKS');
-  const sStep = Math.max(1, Math.floor((state.rays.length - sStart) / 20));
-
-  for (let i = 0; i < state.rays.length; i++) {
-    const ray = state.rays[i];
-    if (ray.phase === 'P' || ray.phase === 'PKP' || ray.phase === 'PP') {
-      if (i % pStep !== 0) continue;
-      const color = ray.phase === 'PKP' ? WAVE_COLORS.PKP.stroke : WAVE_COLORS.P.stroke;
-      drawRay(ray, color, 0.5 * amplitude);
-    } else {
-      if (i % sStep !== 0) continue;
-      drawRay(ray, WAVE_COLORS.S.stroke, ray.isAbsorbed ? 0.15 : 0.45 * amplitude);
+  // Draw ~22 down-going rays per wave type at evenly spaced takeoff angles
+  // (the fan is refined unevenly, and up-going rays never leave the crust area).
+  const isP = (r: Ray) => r.phase === 'P' || r.phase === 'PKP' || r.phase === 'PP';
+  for (const rays of [state.rays.filter(isP), state.rays.filter(r => !isP(r))]) {
+    let nextTakeoff = 0;
+    for (const ray of rays) {
+      if (ray.takeoffAngleDeg >= 90) break;
+      if (ray.takeoffAngleDeg < nextTakeoff) continue;
+      nextTakeoff = ray.takeoffAngleDeg + RAY_DRAW_SPACING_DEG;
+      if (isP(ray)) {
+        drawRay(ray, ray.phase === 'PKP' ? WAVE_COLORS.PKP.stroke : WAVE_COLORS.P.stroke, 0.42 * amplitude);
+      } else {
+        drawRay(ray, WAVE_COLORS.S.stroke, ray.isAbsorbed ? 0.14 : 0.4 * amplitude);
+      }
     }
   }
 }
 
-/** Draw wavefront dots (ray tips) */
+/** Draw the wavefronts as glowing lines through the ray tips. */
 function drawWavefronts(
   ctx: CanvasRenderingContext2D,
   config: DrawConfig,
   wavefronts: WavefrontData,
-  epicenterAbsAngleDeg: number,
+  epi: number,
   amplitude: number,
 ): void {
   const { center, earthPixelRadius } = config;
+  const maxGap = earthPixelRadius * 0.18;
 
   const drawTips = (tips: RayTip[], color: string) => {
     if (tips.length < 2) return;
+    // Tips arrive in takeoff order (straight down → straight up), which runs
+    // along the front. Walk the mirrored side backwards, then the forward side,
+    // so the front is one continuous curve. (Sorting by angle would zigzag
+    // between the up-going and down-going halves of a deep quake's front.)
+    const signed = [
+      ...[...tips].reverse().map(t => ({ ...t, signed: -t.angleDeg })),
+      ...tips.map(t => ({ ...t, signed: t.angleDeg })),
+    ];
 
-    // Draw as a polyline connecting tips (sorted by angle)
-    const sorted = [...tips].sort((a, b) => a.angleDeg - b.angleDeg);
+    const pts = signed.map(t => ({
+      ...radiusAngleToCanvas(t.radiusKm, epi + t.signed, center, earthPixelRadius),
+      opacity: t.opacity,
+    }));
+    const avgOpacity = pts.reduce((s, p) => s + p.opacity, 0) / pts.length;
 
-    ctx.beginPath();
+    const tracePath = () => {
+      ctx.beginPath();
+      for (let i = 0; i < pts.length; i++) {
+        const p = pts[i];
+        const prev = pts[i - 1];
+        if (i === 0 || Math.hypot(p.x - prev.x, p.y - prev.y) > maxGap) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+      }
+    };
+
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
     ctx.strokeStyle = color;
-    ctx.lineWidth = 2.5;
 
-    for (let i = 0; i < sorted.length; i++) {
-      const tip = sorted[i];
-      const absAngle = epicenterAbsAngleDeg + tip.angleDeg;
-      const pos = radiusAngleToCanvas(tip.radiusKm, absAngle, center, earthPixelRadius);
-      ctx.globalAlpha = tip.opacity * amplitude;
-
-      if (i === 0) ctx.moveTo(pos.x, pos.y);
-      else ctx.lineTo(pos.x, pos.y);
-    }
+    // Outer glow, then bright core
+    tracePath();
+    ctx.globalAlpha = 0.22 * avgOpacity * amplitude;
+    ctx.lineWidth = 9;
     ctx.stroke();
+    ctx.globalAlpha = Math.min(1, 1.1 * avgOpacity * amplitude);
+    ctx.lineWidth = 2.6;
+    ctx.stroke();
+
     ctx.globalAlpha = 1;
+    ctx.lineCap = 'butt';
   };
 
   drawTips(wavefronts.pTips, WAVE_COLORS.P.stroke);
   drawTips(wavefronts.sTips, WAVE_COLORS.S.stroke);
 }
 
-/** Draw epicenter marker (star / concentric circles) */
+/** Epicenter / focus marker with a burst when the quake starts. */
 function drawEpicenter(
   ctx: CanvasRenderingContext2D,
   config: DrawConfig,
-  epicenterAbsAngleDeg: number,
-  depthKm: number,
+  state: SimulationState,
+  now: number,
 ): void {
   const { center, earthPixelRadius } = config;
-  const focusRadius = EARTH_RADIUS_KM - depthKm;
-  const pos = radiusAngleToCanvas(focusRadius, epicenterAbsAngleDeg, center, earthPixelRadius);
+  const epi = state.epicenter.surfaceAngleDeg;
+  const pos = radiusAngleToCanvas(EARTH_RADIUS_KM - state.epicenter.depthKm, epi, center, earthPixelRadius);
+  const surfPos = radiusAngleToCanvas(EARTH_RADIUS_KM, epi, center, earthPixelRadius);
 
-  // Draw star
-  ctx.fillStyle = '#fbbf24';
-  ctx.strokeStyle = '#92400e';
-  ctx.lineWidth = 1.5;
-  drawStar(ctx, pos.x, pos.y, 6, 10, 4);
+  // Burst rings during the first moments of the quake (in real seconds).
+  const realElapsed = state.currentTimeSec / Math.max(state.speedMultiplier, 1);
+  if (state.currentTimeSec > 0 && realElapsed < 1.6) {
+    const mag = state.epicenter.magnitudeM;
+    for (let k = 0; k < 3; k++) {
+      const t = realElapsed - k * 0.18;
+      if (t <= 0) continue;
+      const radius = 6 + t * (20 + mag * 6);
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, radius, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(253, 224, 71, ${Math.max(0, 0.8 - t / 1.6)})`;
+      ctx.lineWidth = 3 - k * 0.7;
+      ctx.stroke();
+    }
+  }
 
-  // Surface marker
-  const surfPos = radiusAngleToCanvas(EARTH_RADIUS_KM, epicenterAbsAngleDeg, center, earthPixelRadius);
+  // Dashed line from epicenter (surface) to focus
+  if (state.epicenter.depthKm > 0) {
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    ctx.moveTo(surfPos.x, surfPos.y);
+    ctx.lineTo(pos.x, pos.y);
+    ctx.strokeStyle = 'rgba(251, 191, 36, 0.75)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Pulsing glow
+  const pulse = 0.5 + 0.5 * Math.sin(now * 0.005);
+  const glowR = 14 + pulse * 6;
+  const g = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, glowR);
+  g.addColorStop(0, 'rgba(253, 224, 71, 0.75)');
+  g.addColorStop(1, 'rgba(253, 224, 71, 0)');
+  ctx.fillStyle = g;
   ctx.beginPath();
-  ctx.arc(surfPos.x, surfPos.y, 5, 0, Math.PI * 2);
-  ctx.fillStyle = '#f97316';
+  ctx.arc(pos.x, pos.y, glowR, 0, Math.PI * 2);
   ctx.fill();
-  ctx.strokeStyle = '#7c2d12';
-  ctx.lineWidth = 1;
-  ctx.stroke();
 
-  // Dashed line from surface to focus
-  ctx.setLineDash([4, 3]);
-  ctx.beginPath();
-  ctx.moveTo(surfPos.x, surfPos.y);
-  ctx.lineTo(pos.x, pos.y);
-  ctx.strokeStyle = 'rgba(251, 191, 36, 0.6)';
+  ctx.fillStyle = '#fde047';
+  ctx.strokeStyle = '#b45309';
   ctx.lineWidth = 1.5;
-  ctx.stroke();
-  ctx.setLineDash([]);
+  drawStar(ctx, pos.x, pos.y, 10, 4.5, 5);
 }
 
 function drawStar(
@@ -237,80 +400,103 @@ function drawStar(
   ctx.stroke();
 }
 
-/** Draw observer points on the surface */
+function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+/** Observer stations drawn as seismometer triangles. */
 function drawObservers(
   ctx: CanvasRenderingContext2D,
   config: DrawConfig,
   state: SimulationState,
+  now: number,
 ): void {
   const { center, earthPixelRadius, isDark } = config;
-  const epicenterAbsAngleDeg = state.epicenter.surfaceAngleDeg;
+  const epi = state.epicenter.surfaceAngleDeg;
+  const arrivalWindow = 1.4 * Math.max(state.speedMultiplier, 1);
 
   for (const obs of state.observers) {
-    const absAngle = epicentralToAbsAngle(obs.surfaceAngleDeg, epicenterAbsAngleDeg);
+    const absAngle = epicentralToAbsAngle(obs.surfaceAngleDeg, epi, obs.side);
     const pos = radiusAngleToCanvas(EARTH_RADIUS_KM, absAngle, center, earthPixelRadius);
+    const outward = (absAngle - 90) * DEG_TO_RAD;
+    const ox = Math.cos(outward);
+    const oy = Math.sin(outward);
 
     const hasP = obs.arrivals.some(a => (a.phase === 'P' || a.phase === 'PKP') && a.hasArrived);
     const hasS = obs.arrivals.some(a => a.phase === 'S' && a.hasArrived);
-    const inPShadow = obs.inShadowZone.P;
-    const inSShadow = obs.inShadowZone.S;
     const isSelected = state.selectedObserverId === obs.id;
 
-    let fillColor = isDark ? '#6b7280' : '#9ca3af';
-    if (hasP && hasS) fillColor = '#22c55e';
-    else if (hasP) fillColor = '#3b82f6';
-    else if (inSShadow && inPShadow) fillColor = '#dc2626';
-    else if (inSShadow) fillColor = '#f97316';
+    let fill = isDark ? '#94a3b8' : '#64748b';
+    if (hasP && hasS) fill = '#4ade80';
+    else if (hasP) fill = WAVE_COLORS.P.stroke;
 
-    // Outer ring for selected
+    // Arrival ripples
+    for (const a of obs.arrivals) {
+      const dt = state.currentTimeSec - a.travelTimeSec;
+      if (!a.hasArrived || dt < 0 || dt > arrivalWindow) continue;
+      const t = dt / arrivalWindow;
+      const color = a.phase === 'S' ? '251,113,133' : a.phase === 'PKP' ? '167,139,250' : '56,189,248';
+      for (const k of [0, 0.35]) {
+        const tk = t - k;
+        if (tk <= 0) continue;
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, 8 + tk * 34, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(${color}, ${Math.max(0, 0.9 * (1 - tk))})`;
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+      }
+    }
+
     if (isSelected) {
+      const pulse = 0.5 + 0.5 * Math.sin(now * 0.006);
       ctx.beginPath();
-      ctx.arc(pos.x, pos.y, 10, 0, Math.PI * 2);
+      ctx.arc(pos.x, pos.y, 12 + pulse * 3, 0, Math.PI * 2);
       ctx.strokeStyle = '#fbbf24';
       ctx.lineWidth = 2;
       ctx.stroke();
     }
 
+    // Triangle pointing outward from the surface
+    const size = 8;
+    const px = -oy;
+    const py = ox;
+    const tipX = pos.x + ox * size * 1.1;
+    const tipY = pos.y + oy * size * 1.1;
+    const baseX = pos.x - ox * size * 0.55;
+    const baseY = pos.y - oy * size * 0.55;
     ctx.beginPath();
-    ctx.arc(pos.x, pos.y, 6, 0, Math.PI * 2);
-    ctx.fillStyle = fillColor;
+    ctx.moveTo(tipX, tipY);
+    ctx.lineTo(baseX + px * size * 0.8, baseY + py * size * 0.8);
+    ctx.lineTo(baseX - px * size * 0.8, baseY - py * size * 0.8);
+    ctx.closePath();
+    ctx.fillStyle = fill;
     ctx.fill();
-    ctx.strokeStyle = isDark ? '#1f2937' : '#ffffff';
+    ctx.strokeStyle = isDark ? '#0f172a' : '#ffffff';
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
-    // Label
-    ctx.fillStyle = isDark ? '#e5e7eb' : '#1f2937';
-    ctx.font = 'bold 11px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(obs.label, pos.x, pos.y - 12);
-  }
-}
-
-/** Draw arrival pulse animation on observer points */
-function drawArrivalPulses(
-  ctx: CanvasRenderingContext2D,
-  config: DrawConfig,
-  state: SimulationState,
-): void {
-  const { center, earthPixelRadius } = config;
-  const epicenterAbsAngleDeg = state.epicenter.surfaceAngleDeg;
-
-  for (const obs of state.observers) {
-    const newArrivals = obs.arrivals.filter(
-      a => a.hasArrived && Math.abs(state.currentTimeSec - a.travelTimeSec) < 3,
-    );
-    if (newArrivals.length === 0) continue;
-
-    const absAngle = epicentralToAbsAngle(obs.surfaceAngleDeg, epicenterAbsAngleDeg);
-    const pos = radiusAngleToCanvas(EARTH_RADIUS_KM, absAngle, center, earthPixelRadius);
-
-    const pulse = Math.sin(state.currentTimeSec * 10) * 0.5 + 0.5;
+    // Label bubble outside the surface
+    const lx = pos.x + ox * 24;
+    const ly = pos.y + oy * 24;
     ctx.beginPath();
-    ctx.arc(pos.x, pos.y, 10 + pulse * 6, 0, Math.PI * 2);
-    ctx.strokeStyle = `rgba(251, 191, 36, ${0.6 * pulse})`;
-    ctx.lineWidth = 2;
+    ctx.arc(lx, ly, 9, 0, Math.PI * 2);
+    ctx.fillStyle = isSelected ? '#fbbf24' : isDark ? 'rgba(15,23,42,0.85)' : 'rgba(255,255,255,0.92)';
+    ctx.fill();
+    ctx.strokeStyle = fill;
+    ctx.lineWidth = 1.5;
     ctx.stroke();
+    ctx.fillStyle = isSelected ? '#1f2937' : isDark ? '#e2e8f0' : '#0f172a';
+    ctx.font = "800 11px 'M PLUS Rounded 1c', sans-serif";
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(obs.label, lx, ly + 0.5);
+    ctx.textBaseline = 'alphabetic';
   }
 }
 
@@ -323,38 +509,16 @@ export function drawEarth(
   state: SimulationState,
   wavefronts: WavefrontData,
 ): void {
-  const { epicenter } = state;
+  const now = performance.now();
+  const amp = waveAmplitude(state.epicenter.magnitudeM);
 
-  // Clear
-  ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-
-  // Draw layers
+  drawBackground(ctx, config, now);
+  drawAtmosphere(ctx, config);
   drawLayers(ctx, config);
-
-  // Draw shadow zones
-  drawShadowZones(
-    ctx,
-    config,
-    epicenter.surfaceAngleDeg,
-    state.shadowZone.pShadowStart,
-    state.shadowZone.pShadowEnd,
-    state.shadowZone.sShadowStart,
-  );
-
-  const amp = waveAmplitude(epicenter.magnitudeM);
-
-  // Draw ray paths
+  drawLayerLabels(ctx, config);
+  drawShadowZones(ctx, config, state);
   drawRayPaths(ctx, config, state, amp);
-
-  // Draw wavefronts
-  drawWavefronts(ctx, config, wavefronts, epicenter.surfaceAngleDeg, amp);
-
-  // Draw epicenter
-  drawEpicenter(ctx, config, epicenter.surfaceAngleDeg, epicenter.depthKm);
-
-  // Draw observers
-  drawObservers(ctx, config, state);
-
-  // Draw arrival pulses
-  drawArrivalPulses(ctx, config, state);
+  drawWavefronts(ctx, config, wavefronts, state.epicenter.surfaceAngleDeg, amp);
+  drawEpicenter(ctx, config, state, now);
+  drawObservers(ctx, config, state, now);
 }

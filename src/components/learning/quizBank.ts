@@ -6,53 +6,23 @@ export interface QuizQuestion {
   explanationKey: string;
 }
 
+function question(id: string, answerIndex: number): QuizQuestion {
+  return {
+    id,
+    textKey: `quiz.questions.${id}.text`,
+    optionKeys: [0, 1, 2, 3].map(i => `quiz.questions.${id}.options.${i}`),
+    answerIndex,
+    explanationKey: `quiz.questions.${id}.explanation`,
+  };
+}
+
 export const QUIZ_QUESTIONS: QuizQuestion[] = [
-  {
-    id: 'q1',
-    textKey: 'quiz.questions.q1.text',
-    optionKeys: [
-      'quiz.questions.q1.options.0',
-      'quiz.questions.q1.options.1',
-      'quiz.questions.q1.options.2',
-      'quiz.questions.q1.options.3',
-    ],
-    answerIndex: 1,
-    explanationKey: 'quiz.questions.q1.explanation',
-  },
-  {
-    id: 'q2',
-    textKey: 'quiz.questions.q2.text',
-    optionKeys: [
-      'quiz.questions.q2.options.0',
-      'quiz.questions.q2.options.1',
-      'quiz.questions.q2.options.2',
-      'quiz.questions.q2.options.3',
-    ],
-    answerIndex: 1,
-    explanationKey: 'quiz.questions.q2.explanation',
-  },
-  {
-    id: 'q3',
-    textKey: 'quiz.questions.q3.text',
-    optionKeys: [
-      'quiz.questions.q3.options.0',
-      'quiz.questions.q3.options.1',
-      'quiz.questions.q3.options.2',
-      'quiz.questions.q3.options.3',
-    ],
-    answerIndex: 2,
-    explanationKey: 'quiz.questions.q3.explanation',
-  },
-  {
-    id: 'q4',
-    textKey: 'quiz.questions.q4.text',
-    optionKeys: [
-      'quiz.questions.q4.options.0',
-      'quiz.questions.q4.options.1',
-      'quiz.questions.q4.options.2',
-      'quiz.questions.q4.options.3',
-    ],
-    answerIndex: 1,
-    explanationKey: 'quiz.questions.q4.explanation',
-  },
+  question('q1', 1),
+  question('q2', 1),
+  question('q3', 2),
+  question('q4', 1),
+  question('q5', 2),
+  question('q6', 0),
+  question('q7', 2),
+  question('q8', 1),
 ];

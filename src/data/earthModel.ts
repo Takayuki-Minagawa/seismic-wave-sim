@@ -10,7 +10,7 @@ export const EARTH_LAYERS: EarthLayer[] = [
     pVelocity: 6.0,
     sVelocity: 3.5,
     color: '#a8c86a',
-    darkColor: '#7a9e45',
+    darkColor: '#4d7c3a',
     density: 2.9,
   },
   {
@@ -20,7 +20,7 @@ export const EARTH_LAYERS: EarthLayer[] = [
     pVelocity: 8.0,
     sVelocity: 4.5,
     color: '#e8a04a',
-    darkColor: '#c07830',
+    darkColor: '#9a4a22',
     density: 3.5,
   },
   {
@@ -30,7 +30,7 @@ export const EARTH_LAYERS: EarthLayer[] = [
     pVelocity: 13.0,
     sVelocity: 7.0,
     color: '#c85a28',
-    darkColor: '#a04020',
+    darkColor: '#6e2418',
     density: 4.9,
   },
   {
@@ -40,7 +40,7 @@ export const EARTH_LAYERS: EarthLayer[] = [
     pVelocity: 9.0,
     sVelocity: 0, // liquid — S-waves absorbed
     color: '#f0c020',
-    darkColor: '#c09010',
+    darkColor: '#b77a10',
     density: 10.9,
   },
   {
@@ -50,7 +50,7 @@ export const EARTH_LAYERS: EarthLayer[] = [
     pVelocity: 11.0,
     sVelocity: 3.5,
     color: '#f8e860',
-    darkColor: '#d4c040',
+    darkColor: '#e8c547',
     density: 13.0,
   },
 ];
