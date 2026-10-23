@@ -5,7 +5,8 @@ import { buildTravelTimeCurve, interpolateTravelTime } from '../physics/travelTi
 import { computeShadowZone, isInPShadowZone, isInSShadowZone, isPKPValid } from '../physics/shadowZone';
 
 const DEFAULT_EPICENTER: EpicenterConfig = {
-  surfaceAngleDeg: 90,
+  // Epicenter at the top, like the classic textbook cross-section.
+  surfaceAngleDeg: 0,
   depthKm: 0,
   magnitudeM: 7.0,
 };
@@ -84,6 +85,13 @@ function computeObserverArrivals(
   return arrivals;
 }
 
+/** Time after which every wave has reached the surface (plus a short tail). */
+export function simulationEndTime(curve: TravelTimeDatum[]): number {
+  let max = 0;
+  for (const d of curve) if (d.timeSec > max) max = d.timeSec;
+  return max + 60;
+}
+
 const initialState: SimulationState = (() => {
   const epicenter = DEFAULT_EPICENTER;
   const { rays, travelTimeCurve, shadowZone, observers } = computeStateFromEpicenter(epicenter, []);
@@ -95,7 +103,8 @@ const initialState: SimulationState = (() => {
     shadowZone,
     currentTimeSec: 0,
     isPlaying: false,
-    speedMultiplier: 1,
+    // Real travel times are tens of minutes; 30× keeps a full run under a minute.
+    speedMultiplier: 30,
     selectedObserverId: null,
   };
 })();
@@ -160,7 +169,8 @@ function simulationReducer(state: SimulationState, action: SimulationAction): Si
       };
 
     case 'TICK': {
-      const newTime = state.currentTimeSec + action.dtSec * state.speedMultiplier;
+      const endTime = simulationEndTime(state.travelTimeCurve);
+      const newTime = Math.min(endTime, state.currentTimeSec + action.dtSec * state.speedMultiplier);
       const updatedObservers = state.observers.map(obs => ({
         ...obs,
         arrivals: obs.arrivals.map(a => ({
@@ -168,7 +178,12 @@ function simulationReducer(state: SimulationState, action: SimulationAction): Si
           hasArrived: a.hasArrived || newTime >= a.travelTimeSec,
         })),
       }));
-      return { ...state, currentTimeSec: newTime, observers: updatedObservers };
+      return {
+        ...state,
+        currentTimeSec: newTime,
+        observers: updatedObservers,
+        isPlaying: newTime < endTime,
+      };
     }
 
     case 'SET_SPEED':

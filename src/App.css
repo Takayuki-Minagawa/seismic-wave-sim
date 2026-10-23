@@ -1,10 +1,230 @@
 @import "tailwindcss";
 
+/* Class-based dark mode (toggled by useTheme on <html>) */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: 'M PLUS Rounded 1c', 'Hiragino Maru Gothic ProN', 'Noto Sans JP', system-ui, sans-serif;
+  --font-hud: 'Orbitron', 'M PLUS Rounded 1c', ui-monospace, monospace;
+
+  --color-pwave: #38bdf8;
+  --color-swave: #fb7185;
+  --color-pkp: #a78bfa;
+  --color-gold: #fbbf24;
+  --color-space-950: #050816;
+  --color-space-900: #0a1024;
+  --color-space-800: #111a36;
+  --color-space-700: #1c2750;
+}
+
 @layer base {
-  html {
-    font-family: 'Noto Sans JP', 'Inter', system-ui, sans-serif;
-  }
   * {
     box-sizing: border-box;
+  }
+  html,
+  body {
+    margin: 0;
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    background: #eef3ff;
+    color: #0f172a;
+  }
+  .dark body {
+    background: var(--color-space-950);
+    color: #e2e8f0;
+  }
+  button {
+    cursor: pointer;
+    font-family: inherit;
+  }
+}
+
+/* ── Backgrounds ─────────────────────────────────────────────────────────── */
+
+.app-bg {
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgba(56, 189, 248, 0.18), transparent 60%),
+    radial-gradient(900px 500px at 110% 110%, rgba(251, 113, 133, 0.14), transparent 60%),
+    linear-gradient(180deg, #f3f7ff 0%, #fdf7ee 100%);
+}
+.dark .app-bg {
+  background:
+    radial-gradient(1000px 600px at 0% -10%, rgba(56, 189, 248, 0.16), transparent 60%),
+    radial-gradient(900px 600px at 110% 110%, rgba(167, 139, 250, 0.16), transparent 60%),
+    linear-gradient(180deg, #070b1d 0%, #050816 100%);
+}
+
+/* Frosted glass panel */
+.glass {
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 8px 30px -12px rgba(15, 23, 42, 0.18);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+.dark .glass {
+  background: rgba(13, 20, 44, 0.62);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  box-shadow: 0 10px 40px -12px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.text-gradient {
+  background: linear-gradient(90deg, #38bdf8 0%, #a78bfa 50%, #fb7185 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Big "make an earthquake" button */
+.btn-quake {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, #f97316 0%, #ef4444 45%, #db2777 100%);
+  box-shadow: 0 8px 24px -6px rgba(239, 68, 68, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+}
+.btn-quake:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.08);
+  box-shadow: 0 12px 30px -6px rgba(239, 68, 68, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+.btn-quake:active {
+  transform: translateY(1px) scale(0.99);
+}
+.btn-quake::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, 0.35) 50%, transparent 70%);
+  transform: translateX(-100%);
+  animation: shimmer 3.2s ease-in-out infinite;
+}
+.btn-quake.is-playing {
+  background: linear-gradient(135deg, #334155 0%, #1e293b 100%);
+  box-shadow: 0 6px 18px -8px rgba(0, 0, 0, 0.5);
+}
+.btn-quake.is-playing::after {
+  animation: none;
+}
+
+/* Range slider */
+.range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, var(--range-from, #38bdf8) 0%, var(--range-to, #a78bfa) var(--range-pct, 50%), rgba(148, 163, 184, 0.25) var(--range-pct, 50%));
+  outline: none;
+}
+.range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: #fff;
+  border: 3px solid var(--range-to, #a78bfa);
+  box-shadow: 0 0 0 4px rgba(167, 139, 250, 0.2), 0 2px 6px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+.range::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+.range::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  background: #fff;
+  border: 3px solid var(--range-to, #a78bfa);
+  cursor: pointer;
+}
+
+/* Thin, unobtrusive scrollbars */
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
+}
+
+/* ── Animations ──────────────────────────────────────────────────────────── */
+
+@keyframes shimmer {
+  0%, 60% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+@keyframes quake-shake {
+  0%, 100% { transform: translate(0, 0) rotate(0); }
+  10% { transform: translate(calc(-4px * var(--shake, 1)), calc(2px * var(--shake, 1))) rotate(-0.4deg); }
+  20% { transform: translate(calc(5px * var(--shake, 1)), calc(-3px * var(--shake, 1))) rotate(0.4deg); }
+  30% { transform: translate(calc(-5px * var(--shake, 1)), calc(1px * var(--shake, 1))) rotate(-0.3deg); }
+  40% { transform: translate(calc(4px * var(--shake, 1)), calc(3px * var(--shake, 1))) rotate(0.3deg); }
+  55% { transform: translate(calc(-3px * var(--shake, 1)), calc(-2px * var(--shake, 1))) rotate(-0.2deg); }
+  70% { transform: translate(calc(2px * var(--shake, 1)), calc(1px * var(--shake, 1))) rotate(0.1deg); }
+  85% { transform: translate(calc(-1px * var(--shake, 1)), 0) rotate(0); }
+}
+.animate-quake {
+  animation: quake-shake 0.7s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+@keyframes pop-in {
+  0% { opacity: 0; transform: translateY(10px) scale(0.96); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+.animate-pop-in {
+  animation: pop-in 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.animate-fade-in {
+  animation: fade-in 0.3s ease both;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+.animate-float {
+  animation: float 4s ease-in-out infinite;
+}
+
+@keyframes spin-slow {
+  to { transform: rotate(360deg); }
+}
+.animate-spin-slow {
+  animation: spin-slow 40s linear infinite;
+}
+
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.0); }
+  50% { box-shadow: 0 0 0 6px rgba(251, 191, 36, 0.25); }
+}
+.animate-glow {
+  animation: glow-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes bounce-in {
+  0% { transform: scale(0.3); opacity: 0; }
+  50% { transform: scale(1.15); opacity: 1; }
+  70% { transform: scale(0.95); }
+  100% { transform: scale(1); }
+}
+.animate-bounce-in {
+  animation: bounce-in 0.6s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-quake,
+  .animate-float,
+  .animate-spin-slow,
+  .animate-glow,
+  .btn-quake::after {
+    animation: none !important;
   }
 }

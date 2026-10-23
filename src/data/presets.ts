@@ -1,6 +1,8 @@
 export interface EarthquakePreset {
   id: string;
   nameKey: string;
+  flag: string;
+  year: number;
   epicenterAngleDeg: number;
   depthKm: number;
   magnitudeM: number;
@@ -11,7 +13,9 @@ export const PRESETS: EarthquakePreset[] = [
   {
     id: 'tohoku',
     nameKey: 'preset.tohoku',
-    epicenterAngleDeg: 90,
+    flag: '🇯🇵',
+    year: 2011,
+    epicenterAngleDeg: 0,
     depthKm: 24,
     magnitudeM: 9.0,
     observerAngles: [30, 60, 90, 120, 150],
@@ -19,7 +23,9 @@ export const PRESETS: EarthquakePreset[] = [
   {
     id: 'sumatra',
     nameKey: 'preset.sumatra',
-    epicenterAngleDeg: 90,
+    flag: '🇮🇩',
+    year: 2004,
+    epicenterAngleDeg: 0,
     depthKm: 30,
     magnitudeM: 9.1,
     observerAngles: [45, 90, 130, 160],
@@ -27,7 +33,9 @@ export const PRESETS: EarthquakePreset[] = [
   {
     id: 'chile',
     nameKey: 'preset.chile',
-    epicenterAngleDeg: 90,
+    flag: '🇨🇱',
+    year: 1960,
+    epicenterAngleDeg: 0,
     depthKm: 35,
     magnitudeM: 9.5,
     observerAngles: [60, 110, 145, 170],

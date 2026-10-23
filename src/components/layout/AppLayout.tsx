@@ -1,123 +1,111 @@
-import { ReactNode, useState } from 'react';
+import { ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
+
+export type MobileTab = 'earth' | 'graph' | 'missions' | 'learn' | 'settings';
 
 interface AppLayoutProps {
   topBar: ReactNode;
   controlPanel: ReactNode;
-  earthCanvas: ReactNode;
-  travelTimeGraph: ReactNode;
-  earthInfoPanel: ReactNode;
-  learningPanel: ReactNode;
+  earthStage: ReactNode;
+  analysisPanel: ReactNode;
+  sidePanel: ReactNode;
+  /** Side panel without the missions tab, for the mobile "learn" tab. */
+  mobileLearnPanel: ReactNode;
+  missionPanel: ReactNode;
+  mobileTab: MobileTab;
+  onMobileTabChange: (tab: MobileTab) => void;
+  missionBadge?: string;
 }
 
 export function AppLayout({
   topBar,
   controlPanel,
-  earthCanvas,
-  travelTimeGraph,
-  earthInfoPanel,
-  learningPanel,
+  earthStage,
+  analysisPanel,
+  sidePanel,
+  mobileLearnPanel,
+  missionPanel,
+  mobileTab,
+  onMobileTabChange,
+  missionBadge,
 }: AppLayoutProps) {
-  const [mobileTab, setMobileTab] = useState<'earth' | 'graph' | 'info' | 'quiz'>('earth');
-  const [showControls, setShowControls] = useState(false);
+  const { t } = useTranslation();
+  // Mount only the visible layout so canvases and animation loops aren't duplicated.
+  const isDesktop = useMediaQuery('(min-width: 1024px)');
+
+  const mobileTabs: { id: MobileTab; icon: string; label: string }[] = [
+    { id: 'earth', icon: '🌍', label: t('tabs.earth') },
+    { id: 'graph', icon: '📈', label: t('tabs.graph') },
+    { id: 'settings', icon: '🎛️', label: t('tabs.settings') },
+    { id: 'missions', icon: '🏆', label: t('tabs.missions') },
+    { id: 'learn', icon: '📚', label: t('tabs.learn') },
+  ];
 
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-gray-50 dark:bg-gray-900">
-      {/* Top bar */}
-      <div className="flex-shrink-0">{topBar}</div>
+    <div className="app-bg flex h-dvh w-screen flex-col overflow-hidden text-slate-900 dark:text-slate-100">
+      {topBar}
 
       {/* Desktop layout: 3 columns */}
-      <div className="hidden md:flex flex-1 min-h-0 overflow-hidden">
-        {/* Left: Controls */}
-        <aside className="flex flex-col w-60 lg:w-64 flex-shrink-0 border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 overflow-hidden">
-          {controlPanel}
-        </aside>
+      {isDesktop ? (
+        <div className="flex min-h-0 flex-1 gap-3 px-3 pb-3">
+          <aside className="glass flex w-72 flex-shrink-0 flex-col overflow-hidden rounded-3xl">
+            {controlPanel}
+          </aside>
 
-        {/* Center: Earth + Graph */}
-        <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-          <div className="flex-1 min-h-0 bg-gray-900 dark:bg-gray-950">
-            {earthCanvas}
-          </div>
-          <div className="flex-shrink-0 h-44 lg:h-52 border-t border-gray-700 dark:border-gray-800 bg-white dark:bg-gray-900 p-2">
-            {travelTimeGraph}
-          </div>
+          <main className="flex min-w-0 flex-1 flex-col gap-3">
+            <div className="min-h-0 flex-1 overflow-hidden rounded-3xl bg-space-950 shadow-2xl shadow-black/30 ring-1 ring-white/10">
+              {earthStage}
+            </div>
+            <div className="glass h-60 flex-shrink-0 overflow-hidden rounded-3xl xl:h-64">
+              {analysisPanel}
+            </div>
+          </main>
+
+          <aside className="glass flex w-80 flex-shrink-0 flex-col overflow-hidden rounded-3xl xl:w-[22rem]">
+            {sidePanel}
+          </aside>
         </div>
-
-        {/* Right: Info + Learning (lg+ only) */}
-        <aside className="hidden lg:flex flex-col w-72 xl:w-80 flex-shrink-0 border-l border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 overflow-hidden">
-          <div className="flex-1 min-h-0 overflow-y-auto border-b border-gray-200 dark:border-gray-700 max-h-[55%]">
-            {earthInfoPanel}
+      ) : (
+        /* Mobile / tablet layout: one view at a time with a bottom tab bar */
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className="min-h-0 flex-1 overflow-hidden px-2">
+            {mobileTab === 'earth' && (
+              <div className="h-full overflow-hidden rounded-3xl bg-space-950 ring-1 ring-white/10">{earthStage}</div>
+            )}
+            {mobileTab === 'graph' && <div className="glass h-full overflow-hidden rounded-3xl">{analysisPanel}</div>}
+            {mobileTab === 'settings' && <div className="glass h-full overflow-hidden rounded-3xl">{controlPanel}</div>}
+            {mobileTab === 'missions' && (
+              <div className="glass scroll-thin h-full overflow-y-auto rounded-3xl">{missionPanel}</div>
+            )}
+            {mobileTab === 'learn' && <div className="glass h-full overflow-hidden rounded-3xl">{mobileLearnPanel}</div>}
           </div>
-          <div className="flex-1 min-h-0 overflow-y-auto">
-            {learningPanel}
-          </div>
-        </aside>
-      </div>
 
-      {/* Mobile layout: stacked with tab bar */}
-      <div className="flex md:hidden flex-1 flex-col min-h-0 overflow-hidden">
-        {/* Tab content */}
-        <div className="flex-1 min-h-0 overflow-hidden">
-          {mobileTab === 'earth' && (
-            <div className="flex flex-col h-full bg-gray-900 dark:bg-gray-950">
-              {earthCanvas}
+          <nav className="flex flex-shrink-0 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2">
+            <div className="glass flex w-full rounded-2xl p-1">
+              {mobileTabs.map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => onMobileTabChange(tab.id)}
+                  className={`relative flex flex-1 flex-col items-center rounded-xl py-1.5 text-[10px] font-bold transition-all ${
+                    mobileTab === tab.id
+                      ? 'bg-gradient-to-br from-sky-500 to-violet-500 text-white shadow-md'
+                      : 'text-slate-500 dark:text-slate-400'
+                  }`}
+                >
+                  <span className="text-lg leading-tight">{tab.icon}</span>
+                  <span>{tab.label}</span>
+                  {tab.id === 'missions' && missionBadge && mobileTab !== 'missions' && (
+                    <span className="absolute right-1 top-0.5 rounded-full bg-amber-400 px-1 font-hud text-[8px] text-slate-900">
+                      {missionBadge}
+                    </span>
+                  )}
+                </button>
+              ))}
             </div>
-          )}
-          {mobileTab === 'graph' && (
-            <div className="h-full bg-white dark:bg-gray-900 p-2">
-              {travelTimeGraph}
-            </div>
-          )}
-          {mobileTab === 'info' && (
-            <div className="h-full overflow-y-auto bg-white dark:bg-gray-900">
-              {earthInfoPanel}
-            </div>
-          )}
-          {mobileTab === 'quiz' && (
-            <div className="h-full overflow-y-auto bg-white dark:bg-gray-900">
-              {learningPanel}
-            </div>
-          )}
+          </nav>
         </div>
-
-        {/* Mobile bottom tab bar */}
-        <div className="flex-shrink-0 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-          {/* Controls drawer toggle */}
-          <div
-            className={`transition-all overflow-hidden ${showControls ? 'max-h-64' : 'max-h-0'}`}
-          >
-            <div className="border-t border-gray-200 dark:border-gray-700 max-h-64 overflow-y-auto">
-              {controlPanel}
-            </div>
-          </div>
-          <div className="flex items-center">
-            <button
-              onClick={() => setShowControls(v => !v)}
-              className="flex flex-col items-center px-3 py-2 text-xs text-gray-500 dark:text-gray-400"
-            >
-              <svg className="w-5 h-5 mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
-              </svg>
-              設定
-            </button>
-            {(['earth', 'graph', 'info', 'quiz'] as const).map(tab => (
-              <button
-                key={tab}
-                onClick={() => setMobileTab(tab)}
-                className={`flex-1 flex flex-col items-center py-2 text-xs transition-colors ${
-                  mobileTab === tab
-                    ? 'text-blue-500 dark:text-blue-400'
-                    : 'text-gray-500 dark:text-gray-400'
-                }`}
-              >
-                <span className="text-base mb-0.5">
-                  {tab === 'earth' ? '🌍' : tab === 'graph' ? '📈' : tab === 'info' ? '📊' : '📚'}
-                </span>
-                <span>{tab === 'earth' ? '断面図' : tab === 'graph' ? '走時曲線' : tab === 'info' ? '構造' : '学習'}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
+      )}
     </div>
   );
 }

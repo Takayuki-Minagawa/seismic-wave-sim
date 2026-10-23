@@ -1,29 +1,61 @@
 {
   "appTitle": "Seismic Wave & Earth Interior Simulator",
+  "appShortTitle": "Seismic Wave Sim",
+  "appSubtitle": "Peek inside the Earth with seismic waves",
   "lang": "English",
   "theme": {
     "light": "Light",
-    "dark": "Dark"
+    "dark": "Dark",
+    "toggle": "Toggle theme"
+  },
+  "top": {
+    "help": "How to play",
+    "soundOn": "Sound on",
+    "soundOff": "Sound off",
+    "language": "Switch language"
+  },
+  "welcome": {
+    "badge": "Earth Science × Interactive Lab",
+    "title": "What's inside the Earth?",
+    "lead": "Nobody can dig to the center of the Earth. But seismic waves let us look inside it! Become a seismologist and uncover the planet's secrets.",
+    "step1Title": "Pick an epicenter",
+    "step1Body": "Click or drag on the cross-section to move the focus. Click inside the Earth for a deep earthquake.",
+    "step2Title": "Make a quake!",
+    "step2Body": "Hit \"Make a quake!\" and watch P-waves (blue) and S-waves (red) travel through the planet.",
+    "step3Title": "Observe & solve",
+    "step3Body": "Double-click the surface to place stations. Where do waves arrive — and where don't they?",
+    "missionTeaser": "Clear {{count}} missions and rise to \"Geophysics Doctor\"!",
+    "start": "Start exploring 🚀"
   },
   "controls": {
-    "title": "Controls",
-    "depth": "Focus Depth",
-    "depthUnit": "km",
-    "magnitude": "Magnitude",
-    "speed": "Speed",
-    "play": "Play",
+    "title": "Lab Controls",
+    "quake": "Make a quake!",
     "pause": "Pause",
+    "resume": "Resume",
+    "replay": "Quake again",
+    "depth": "Focus depth",
+    "depthUnit": "km",
+    "depthShallow": "Shallow",
+    "depthIntermediate": "Intermediate",
+    "depthDeep": "Deep-focus",
+    "magnitude": "Magnitude",
+    "magSmall": "Small quake",
+    "magStrong": "Major quake",
+    "magGreat": "Great quake",
+    "speed": "Fast-forward",
+    "play": "Play",
     "reset": "Reset",
-    "addObserver": "Add Station",
+    "addObserver": "Station",
     "epicenterAngle": "Epicenter",
-    "time": "Elapsed Time",
+    "time": "Elapsed",
     "timeUnit": "s"
   },
   "preset": {
-    "title": "Presets",
-    "tohoku": "Tōhoku Earthquake (2011)",
-    "sumatra": "Sumatra Earthquake (2004)",
-    "chile": "Chile Earthquake (1960)"
+    "title": "Replay historic quakes",
+    "tohoku": "Tōhoku, Japan",
+    "sumatra": "Sumatra–Andaman",
+    "chile": "Valdivia, Chile",
+    "meta": "{{year}} · M{{m}} · {{d}} km deep"
   },
   "wave": {
     "P": "P-wave",
@@ -34,6 +66,8 @@
   },
   "observer": {
     "title": "Seismic Stations",
+    "short": "Station",
+    "empty": "Double-click the Earth's surface or press + to place a station",
     "distance": "Epicentral Distance",
     "distanceUnit": "°",
     "arrival": "Arrival Time",
@@ -44,13 +78,83 @@
     "waiting": "Waiting",
     "arrived": "Arrived"
   },
+  "hud": {
+    "idle": "Ready — make a quake!",
+    "playing": "Waves propagating",
+    "paused": "Paused",
+    "finished": "Run complete — try again!",
+    "hintClick": "Click / drag: move the focus",
+    "hintDouble": "Double-click: place a station",
+    "focus": "Focus depth"
+  },
+  "toast": {
+    "arrival": "{{phase}} reached Station {{label}}!",
+    "arrivalBody": "Distance {{dist}}° · travel time {{time}}"
+  },
   "graph": {
     "title": "Travel Time Curves",
     "xAxis": "Epicentral Distance (°)",
     "yAxis": "Travel Time (s)",
     "pCurve": "P-wave",
     "sCurve": "S-wave",
-    "pkpCurve": "PKP"
+    "pkpCurve": "PKP",
+    "now": "now"
+  },
+  "seismo": {
+    "title": "Seismograph",
+    "noObserver": "Place a station to see its seismograph recording here",
+    "station": "Station {{label}} · distance {{dist}}°",
+    "sp": "S−P time",
+    "spValue": "{{sec}} s",
+    "spHint": "The longer the S−P time, the farther the quake!",
+    "noS": "No S-wave (S-wave shadow zone)",
+    "waiting": "Waiting for waves…",
+    "pick": "Click a station to switch"
+  },
+  "missions": {
+    "title": "Missions",
+    "subtitle": "Clear missions, earn XP and rank up!",
+    "unlocked": "Mission complete! +{{xp}} XP",
+    "rankUp": "Rank up!",
+    "progress": "{{done}} / {{total}} complete",
+    "nextRank": "{{xp}} XP to next rank",
+    "maxRank": "Top rank reached. Congratulations!",
+    "reset": "Reset progress",
+    "resetConfirm": "Reset all mission progress?",
+    "list": {
+      "firstQuake": { "title": "First quake", "desc": "Press the \"Make a quake!\" button" },
+      "placeObserver": { "title": "Set up a station", "desc": "Double-click the surface to place a station" },
+      "catchP": { "title": "Catch a P-wave", "desc": "Let a P-wave reach a station" },
+      "catchS": { "title": "Catch an S-wave too", "desc": "Record both P and S at the same station" },
+      "sShadow": { "title": "Find the S shadow", "desc": "Place a station beyond 103° and confirm no S-wave arrives" },
+      "pkp": { "title": "Through the core", "desc": "Record a PKP wave beyond 143°" },
+      "deepQuake": { "title": "Deep-focus quake", "desc": "Make a quake 300 km deep or more" },
+      "greatQuake": { "title": "Great quake", "desc": "Make a magnitude 9.0+ quake" },
+      "network": { "title": "Station network", "desc": "Place 5 or more stations" },
+      "preset": { "title": "Learn from history", "desc": "Run a historic earthquake preset" },
+      "layers": { "title": "Inner explorer", "desc": "Inspect all 5 layers in the Structure tab" },
+      "quizClear": { "title": "Quiz challenger", "desc": "Finish the quiz" },
+      "quizPerfect": { "title": "Perfect score!", "desc": "Answer every quiz question correctly" }
+    }
+  },
+  "rank": {
+    "0": "Seismology Rookie",
+    "1": "Station Observer",
+    "2": "Quake Researcher",
+    "3": "Seismologist",
+    "4": "Geophysics Doctor"
+  },
+  "tabs": {
+    "earth": "Earth",
+    "graph": "Graphs",
+    "missions": "Missions",
+    "learn": "Learn",
+    "settings": "Controls",
+    "explanation": "Guide",
+    "quiz": "Quiz",
+    "structure": "Structure",
+    "travelTime": "Travel times",
+    "seismogram": "Seismograph"
   },
   "layers": {
     "title": "Earth Interior Structure",
@@ -61,6 +165,7 @@
     "innerCore": "Inner Core",
     "thickness": "Thickness",
     "thicknessUnit": "km",
+    "depthRange": "Depth {{from}}–{{to}} km",
     "density": "Density",
     "densityUnit": "g/cm³",
     "pVelocity": "P-wave velocity",
@@ -69,6 +174,10 @@
     "state": "State",
     "solid": "Solid",
     "liquid": "Liquid",
+    "sBlocked": "Blocked!",
+    "radius": "Earth's radius: {{r}} km",
+    "explored": "Layers explored {{n}} / 5",
+    "tapHint": "Tap a card to inspect it",
     "description": {
       "crust": "The outermost layer of Earth. Continental crust is 30–70 km thick; oceanic crust is 5–10 km. P-wave: 6.0 km/s, S-wave: 3.5 km/s.",
       "upperMantle": "Extends from the crust to ~400 km depth. Includes the lithosphere and asthenosphere. P-wave: 8.0 km/s, S-wave: 4.5 km/s.",
@@ -79,50 +188,85 @@
   },
   "learning": {
     "title": "Learning Panel",
-    "explanationTab": "Explanation",
-    "quizTab": "Quiz",
+    "guide": "Dr. Namazu",
+    "basics": "Wave basics",
+    "pTitle": "P-wave",
+    "pType": "Longitudinal (compression)",
+    "pMedium": "Solid, liquid & gas",
+    "pSpeed": "Fast — arrives first!",
+    "sTitle": "S-wave",
+    "sType": "Transverse (shear)",
+    "sMedium": "Solid only",
+    "sSpeed": "Slower than P",
+    "shadowTitle": "Shadow zones (teaching model)",
+    "shadowP": "P-wave: {{from}}°–{{to}}°",
+    "shadowS": "S-wave: beyond {{from}}°",
+    "trivia": "Did you know?",
+    "triviaBody": "In 1936 Danish seismologist Inge Lehmann discovered the solid inner core from faint waves arriving inside the P-wave shadow zone.",
     "explanation": {
-      "intro": "Click on the Earth to set an epicenter and watch seismic waves propagate through Earth's interior. Blue = P-waves, Red = S-waves.",
+      "intro": "Hi there! Start by pressing \"Make a quake!\". You'll see P-waves (blue) and S-waves (red) travel through the Earth.",
       "shadowZoneS": "No S-waves reach stations beyond 103°. S-waves (shear waves) cannot travel through liquid, so they are absorbed by the liquid outer core. The S-wave shadow zone is evidence that Earth's outer core is liquid.",
       "shadowZoneP": "Between 103° and 143° lies the P-wave shadow zone. The large velocity change at the core-mantle boundary bends P-waves away from this region. PKP waves (P-waves through the core) emerge beyond 143°.",
       "pkpArrival": "PKP wave detected! This P-wave traveled through the outer core and emerged on the far side of Earth, beyond the shadow zone.",
-      "observerInShadow": "This station ({{distance}}°) is in the S-wave shadow zone. Only P-waves (or PKP) can reach it.",
-      "bothWaves": "This station ({{distance}}°) receives both P-waves and S-waves. P-waves arrive first, followed by S-waves.",
+      "observerInShadow": "This station ({{distance}}°) is in the S-wave shadow zone. S-waves can't cross the liquid outer core, so they never arrive.",
+      "bothWaves": "This station ({{distance}}°) received both P-waves and S-waves. P arrives first, then S — the gap between them is the S−P time.",
       "pFirst": "P-waves (Primary waves) travel faster than S-waves and arrive first at every distance. S-waves (Secondary waves) travel only through solid material."
     }
   },
   "quiz": {
     "title": "Quiz",
-    "start": "Start Quiz",
+    "start": "Take the quiz!",
+    "intro": "Test what you learned in the simulator. {{total}} questions.",
+    "retry": "Try again",
     "next": "Next",
-    "finish": "Finish",
+    "finish": "See results",
     "correct": "Correct!",
-    "incorrect": "Incorrect",
+    "incorrect": "Not quite…",
+    "streak": "{{n}} in a row!",
     "score": "{{correct}} / {{total}} correct",
+    "resultPerfect": "Perfect! You're a seismology expert!",
+    "resultGood": "Great job! Almost a perfect score!",
+    "resultTry": "Experiment in the simulator, then try again!",
     "questions": {
       "q1": {
-        "text": "Which seismic waves reach a station at an epicentral distance of 120°?",
-        "options": ["Both P and S waves", "P-wave only (PKP)", "S-wave only", "Neither wave arrives"],
-        "answer": 1,
-        "explanation": "Beyond 103°, S-waves cannot arrive (absorbed by the liquid outer core). The region 103°–143° is also the P direct-wave shadow zone, but PKP waves (core-crossing P-waves) can arrive beyond ~143°. In simplified educational models, PKP arrival is considered for this zone."
+        "text": "Which seismic waves reach a station at an epicentral distance of 150°?",
+        "options": ["Both P and S waves", "Only PKP (P-waves through the core)", "S-wave only", "Neither wave arrives"],
+        "explanation": "Beyond 103°, S-waves cannot arrive (absorbed by the liquid outer core). Direct P-waves are shadowed between 103° and 143°, but PKP waves refracted through the core emerge beyond 143°. At 150°, only PKP is recorded."
       },
       "q2": {
         "text": "Why does the S-wave shadow zone exist?",
         "options": ["The crust is too thin", "The outer core is liquid", "The inner core is solid", "The mantle is too thick"],
-        "answer": 1,
         "explanation": "S-waves are shear (transverse) waves that cannot travel through liquids. The outer core is composed of liquid iron-nickel alloy, so S-waves are absorbed there. This creates the S-wave shadow zone beyond ~103°."
       },
       "q3": {
         "text": "At an epicentral distance of 80°, which wave arrives first?",
         "options": ["S-wave", "They arrive simultaneously", "P-wave", "It depends on the distance"],
-        "answer": 2,
         "explanation": "P-waves always travel faster than S-waves (e.g., P: 6.0 km/s vs S: 3.5 km/s in the crust). P-waves always arrive first — hence the names Primary (P) and Secondary (S) waves."
       },
       "q4": {
         "text": "What is the main reason seismic waves curve (refract) as they travel through Earth?",
         "options": ["Earth is spherical", "Wave velocity changes with depth", "Earth rotates", "Magnetic field effects"],
-        "answer": 1,
         "explanation": "By Snell's Law, waves refract at boundaries where velocity changes. Inside Earth, increasing pressure and temperature change wave velocities continuously with depth, causing seismic rays to curve rather than travel in straight lines."
+      },
+      "q5": {
+        "text": "Which correctly describes the states of the outer and inner core?",
+        "options": ["Outer: solid, Inner: solid", "Outer: solid, Inner: liquid", "Outer: liquid, Inner: solid", "Outer: liquid, Inner: liquid"],
+        "explanation": "The outer core is liquid (S-waves can't pass), while the inner core is solid. Despite its high temperature, the enormous pressure keeps the inner core solid."
+      },
+      "q6": {
+        "text": "How does the S−P time (gap between P and S arrivals) change farther from the focus?",
+        "options": ["It gets longer", "It gets shorter", "It stays the same", "It becomes zero"],
+        "explanation": "P and S travel at different speeds, so the gap grows with distance. Measuring the S−P time on a seismograph tells you how far away the quake was (Omori's formula). Check it in the Seismograph tab!"
+      },
+      "q7": {
+        "text": "Roughly what range of epicentral distances is the P-wave shadow zone? (teaching model)",
+        "options": ["0°–30°", "60°–90°", "103°–143°", "143°–180°"],
+        "explanation": "P-waves refract sharply at the core-mantle boundary, so they don't reach 103°–143° directly. Gutenberg used this shadow to estimate the size of the core."
+      },
+      "q8": {
+        "text": "In this simulator's Earth model, in which layer do P-waves travel fastest?",
+        "options": ["Crust", "Lower mantle", "Outer core", "Inner core"],
+        "explanation": "In this model the lower mantle has the highest P-wave speed (13.0 km/s). Entering the liquid outer core, P slows sharply to 9.0 km/s — and that drop creates the P-wave shadow zone."
       }
     }
   },
