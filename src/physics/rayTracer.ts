@@ -12,54 +12,38 @@
  */
 
 import { EARTH_LAYERS, getLayerAt, getVelocityAt } from '../data/earthModel';
-import { EARTH_RADIUS_KM, DEG_TO_RAD, RAD_TO_DEG, INTEGRATION_STEPS } from './constants';
+import { EARTH_RADIUS_KM, DEG_TO_RAD, RAD_TO_DEG } from './constants';
 import { Ray, RaySegment, WavePhase, WaveType } from './types';
 
 let rayIdCounter = 0;
 
-function simpsonIntegrate(
-  f: (r: number) => number,
-  a: number,
-  b: number,
-  n: number,
-): number {
-  if (Math.abs(b - a) < 0.001) return 0;
-  const steps = n % 2 === 0 ? n : n + 1;
-  const h = (b - a) / steps;
-  let sum = f(a) + f(b);
-  for (let i = 1; i < steps; i++) {
-    const r = a + i * h;
-    sum += (i % 2 === 0 ? 2 : 4) * f(r);
-  }
-  return (h / 3) * sum;
-}
-
+/**
+ * Exact ray geometry inside a constant-velocity shell.
+ *
+ * With constant velocity the ray is a straight line whose closest approach
+ * to the Earth's center is b = p·v (Snell's law in spherical form). Between
+ * radii r1 and r2 (both >= b):
+ *   path length = |√(r2² − b²) − √(r1² − b²)|,  time = length / v
+ *   angle       = |acos(b / r2) − acos(b / r1)|
+ */
 function integrateSegment(
   r1: number,
   r2: number,
   v: number,
   p: number,
-  steps: number,
 ): { dAngle: number; dTime: number } {
-  const sign = r2 > r1 ? 1 : -1; // ascending (+) or descending (-)
-  const [rMin, rMax] = r1 < r2 ? [r1, r2] : [r2, r1];
+  const b = p * v;
+  const leg = (r: number) => Math.sqrt(Math.max(0, r * r - b * b));
+  const theta = (r: number) => Math.acos(Math.min(1, b / Math.max(r, 1e-6)));
 
-  const dAngleFn = (r: number) => {
-    const disc = r * r / (v * v) - p * p;
-    if (disc <= 0) return 0;
-    return p / (r * Math.sqrt(disc));
+  return {
+    dAngle: Math.abs(theta(r2) - theta(r1)),
+    dTime: Math.abs(leg(r2) - leg(r1)) / v,
   };
-  const dTimeFn = (r: number) => {
-    const disc = r * r / (v * v) - p * p;
-    if (disc <= 0) return 0;
-    return 1 / (v * Math.sqrt(disc));
-  };
-
-  const dAngle = simpsonIntegrate(dAngleFn, rMin, rMax, steps);
-  const dTime = simpsonIntegrate(dTimeFn, rMin, rMax, steps);
-
-  return { dAngle: sign < 0 ? dAngle : dAngle, dTime };
 }
+
+/** How long an S-wave is shown fading out at the core-mantle boundary (s). */
+const S_ABSORPTION_FADE_SEC = 90;
 
 /**
  * Trace a single ray from source with given takeoff angle.
@@ -106,21 +90,18 @@ function traceSingleRay(
     const layer = EARTH_LAYERS[li];
     const v = waveType === 'P' ? layer.pVelocity : layer.sVelocity;
 
-    // Check S-wave absorption in outer core
+    // S-waves cannot enter the liquid outer core: they stall and fade at the boundary.
     if (waveType === 'S' && layer.name === 'outerCore') {
-      const { dAngle, dTime } = integrateSegment(currentRadius, layer.innerRadius, layer.pVelocity, p, INTEGRATION_STEPS);
       segments.push({
         startRadius: currentRadius,
-        endRadius: layer.outerRadius,
+        endRadius: currentRadius,
         startAngle: totalAngle,
-        endAngle: totalAngle + dAngle,
-        velocity: layer.pVelocity,
+        endAngle: totalAngle,
+        velocity: 0,
         waveType,
         layerName: layer.name,
-        travelTime: dTime,
+        travelTime: S_ABSORPTION_FADE_SEC,
       });
-      totalAngle += dAngle;
-      totalTime += dTime;
       isAbsorbed = true;
       break;
     }
@@ -130,11 +111,15 @@ function traceSingleRay(
       break;
     }
 
+    // The ray cannot enter a layer whose turning radius lies above the
+    // boundary (post-critical incidence) — it turns back at the boundary.
+    if (p * v > currentRadius) break;
+
     // Check if ray turns in this layer
     const rTurn = findTurning(li, v);
     if (rTurn > 0) {
       // Descend to turning radius
-      const { dAngle: dA1, dTime: dT1 } = integrateSegment(currentRadius, rTurn, v, p, INTEGRATION_STEPS);
+      const { dAngle: dA1, dTime: dT1 } = integrateSegment(currentRadius, rTurn, v, p);
       const startAngle = totalAngle;
       totalAngle += dA1;
       totalTime += dT1;
@@ -156,18 +141,7 @@ function traceSingleRay(
     } else {
       // Cross entire layer to inner boundary
       const innerR = layer.innerRadius > 0 ? layer.innerRadius : 1;
-      // Check if p * v > r_inner (total reflection at next boundary?)
-      const nextLayerIdx = li + 1;
-      if (nextLayerIdx < EARTH_LAYERS.length) {
-        const nextLayer = EARTH_LAYERS[nextLayerIdx];
-        const vNext = waveType === 'P' ? nextLayer.pVelocity : nextLayer.sVelocity;
-        // If ray parameter would cause imaginary angle in next layer, turn here
-        if (vNext > 0 && p * vNext > layer.innerRadius) {
-          // Doesn't quite turn at boundary — trace to inner boundary and continue
-        }
-      }
-
-      const { dAngle, dTime } = integrateSegment(currentRadius, innerR, v, p, INTEGRATION_STEPS);
+      const { dAngle, dTime } = integrateSegment(currentRadius, innerR, v, p);
       const startAngle = totalAngle;
       totalAngle += dAngle;
       totalTime += dTime;
@@ -212,7 +186,7 @@ function traceSingleRay(
 
   for (const seg of downSegmentsReversed) {
     // Mirror segment: swap start/end radius, continue angle accumulation
-    const { dAngle, dTime } = integrateSegment(seg.endRadius, seg.startRadius, seg.velocity, p, INTEGRATION_STEPS);
+    const { dAngle, dTime } = integrateSegment(seg.endRadius, seg.startRadius, seg.velocity, p);
     const startAngle = totalAngle;
     totalAngle += dAngle;
     totalTime += dTime;

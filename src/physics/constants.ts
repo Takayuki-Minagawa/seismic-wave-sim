@@ -6,4 +6,3 @@ export const MAX_TRAVEL_TIME_SEC = 2500;
 export const RAY_FAN_COUNT = 360; // number of takeoff angles
 export const MIN_TAKEOFF_DEG = 0.5;
 export const MAX_TAKEOFF_DEG = 89.5;
-export const INTEGRATION_STEPS = 150;
