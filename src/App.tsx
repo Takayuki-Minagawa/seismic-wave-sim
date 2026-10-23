@@ -75,7 +75,7 @@ function App() {
     // Spread new stations out so each one teaches something different.
     const used = new Set(state.observers.map(o => Math.round(o.surfaceAngleDeg)));
     const candidates = [40, 80, 120, 155, 20, 60, 100, 140, 170];
-    addObserver(candidates.find(a => !used.has(a)) ?? 90);
+    addObserver(candidates.find(a => !used.has(a)) ?? 90, state.observers.length % 2 === 0 ? 1 : -1);
   }, [addObserver, state.observers]);
 
   const handleLoadPreset = useCallback((epicenter: EpicenterConfig, angles: number[]) => {
@@ -107,7 +107,9 @@ function App() {
         if (!a.hasArrived) continue;
         const key = `${obs.id}:${a.phase}`;
         current.add(key);
-        if (state.isPlaying && !arrivedRef.current.has(key)) {
+        // Only announce waves that just arrived (not ones already past a newly added station).
+        const justArrived = state.currentTimeSec - a.travelTimeSec <= 1.5 * state.speedMultiplier;
+        if (state.isPlaying && justArrived && !arrivedRef.current.has(key)) {
           sound.arrival(a.phase);
           toastStore.push({
             kind: a.phase === 'S' ? 'S' : a.phase === 'PKP' ? 'PKP' : 'P',
@@ -119,7 +121,7 @@ function App() {
       }
     }
     arrivedRef.current = current;
-  }, [state.observers, state.isPlaying, t]);
+  }, [state.observers, state.isPlaying, state.currentTimeSec, state.speedMultiplier, t]);
 
   const selectedObsDist = useMemo(() => {
     if (!state.selectedObserverId) return selectedGraphDist;

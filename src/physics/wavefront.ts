@@ -3,7 +3,7 @@
  * Returns arrays of {x, y} canvas points for P-wave and S-wave fronts.
  */
 
-import { Ray } from './types';
+import { Ray, RaySegment } from './types';
 
 export interface RayTip {
   radiusKm: number;
@@ -11,6 +11,22 @@ export interface RayTip {
   opacity: number;
   waveType: 'P' | 'S';
   layerName: string;
+}
+
+/**
+ * Point at time-fraction f along a segment. Inside a constant-velocity layer the
+ * ray is a straight chord traversed at constant speed, so interpolating in
+ * Cartesian space is exact (linear interpolation in (r, θ) would bow off the chord).
+ * Returns radius (km) and angle (radians from the source meridian).
+ */
+export function pointAlongSegment(seg: RaySegment, f: number): { radiusKm: number; angleRad: number } {
+  const x0 = seg.startRadius * Math.sin(seg.startAngle);
+  const y0 = seg.startRadius * Math.cos(seg.startAngle);
+  const x1 = seg.endRadius * Math.sin(seg.endAngle);
+  const y1 = seg.endRadius * Math.cos(seg.endAngle);
+  const x = x0 + (x1 - x0) * f;
+  const y = y0 + (y1 - y0) * f;
+  return { radiusKm: Math.hypot(x, y), angleRad: Math.atan2(x, y) };
 }
 
 /**
@@ -24,8 +40,7 @@ function getRayTipAtTime(ray: Ray, timeSec: number): RayTip | null {
     if (elapsed + seg.travelTime >= timeSec) {
       // The wave front is within this segment
       const fraction = (timeSec - elapsed) / seg.travelTime;
-      const radius = seg.startRadius + fraction * (seg.endRadius - seg.startRadius);
-      const angle = seg.startAngle + fraction * (seg.endAngle - seg.startAngle);
+      const { radiusKm: radius, angleRad: angle } = pointAlongSegment(seg, fraction);
 
       const opacity = seg.layerName === 'outerCore' && seg.waveType === 'S'
         ? Math.max(0, 1 - fraction)  // fade out S-wave at outer core

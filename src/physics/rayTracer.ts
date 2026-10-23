@@ -54,7 +54,9 @@ function traceSingleRay(
   takeoffAngleDeg: number,
   waveType: WaveType,
 ): Ray | null {
-  const v0 = getVelocityAt(sourceRadiusKm, waveType);
+  // Rays leave downward, so a source exactly on a boundary belongs to the layer below.
+  const sourceProbeKm = sourceRadiusKm - 1e-6;
+  const v0 = getVelocityAt(sourceProbeKm, waveType);
   if (v0 === 0) return null;
 
   const takeoffRad = takeoffAngleDeg * DEG_TO_RAD;
@@ -67,7 +69,7 @@ function traceSingleRay(
   let isAbsorbed = false;
   const layersTraversed: string[] = [];
 
-  const sourceLayer = getLayerAt(sourceRadiusKm);
+  const sourceLayer = getLayerAt(sourceProbeKm);
   const currentLayerIdx = EARTH_LAYERS.findIndex(l => l.name === sourceLayer.name);
 
   // --- DESCENDING PHASE ---
@@ -203,7 +205,34 @@ function traceSingleRay(
     });
   }
 
-  const surfaceDeg = totalAngle * RAD_TO_DEG;
+  // --- UP-GOING LEG from the source depth to the surface (deep-focus quakes) ---
+  // The mirrored ascent above ends back at the source radius.
+  currentRadius = sourceRadiusKm;
+  for (let li = currentLayerIdx; li >= 0 && currentRadius < EARTH_RADIUS_KM; li--) {
+    const layer = EARTH_LAYERS[li];
+    const v = waveType === 'P' ? layer.pVelocity : layer.sVelocity;
+    const top = Math.min(layer.outerRadius, EARTH_RADIUS_KM);
+    if (top <= currentRadius || v === 0) continue;
+    const { dAngle, dTime } = integrateSegment(currentRadius, top, v, p);
+    const startAngle = totalAngle;
+    totalAngle += dAngle;
+    totalTime += dTime;
+    segments.push({
+      startRadius: currentRadius,
+      endRadius: top,
+      startAngle,
+      endAngle: totalAngle,
+      velocity: v,
+      waveType,
+      layerName: layer.name,
+      travelTime: dTime,
+    });
+    currentRadius = top;
+  }
+
+  // Epicentral distance folds back once a ray travels past the antipode.
+  const rawDeg = (totalAngle * RAD_TO_DEG) % 360;
+  const surfaceDeg = rawDeg > 180 ? 360 - rawDeg : rawDeg;
 
   // Determine phase from layer traversal
   let phase: WavePhase = waveType === 'P' ? 'P' : 'S';
@@ -218,7 +247,7 @@ function traceSingleRay(
     takeoffAngleDeg,
     segments,
     totalTravelTime: totalTime,
-    surfaceAngleDeg: Math.min(surfaceDeg, 180),
+    surfaceAngleDeg: surfaceDeg,
     phase,
     isAbsorbed: false,
   };
@@ -235,10 +264,12 @@ export function computeRayFan(
   const pRays: Ray[] = [];
   const sRays: Ray[] = [];
 
-  const angleStep = 89.0 / 180; // ~0.5° steps → 180 rays per wave type
-  for (let i = 0; i <= 180; i++) {
-    const takeoff = 0.5 + i * angleStep;
+  // ~0.25° steps keep neighbouring rays close near critical angles, where the
+  // surface distance changes fastest. A near-vertical ray reaches the antipode.
+  const takeoffs = [0.05];
+  for (let i = 0; i <= 356; i++) takeoffs.push(0.5 + i * 0.25);
 
+  for (const takeoff of takeoffs) {
     const pRay = traceSingleRay(sourceRadius, takeoff, 'P');
     if (pRay && pRay.totalTravelTime > 0 && pRay.totalTravelTime < 3000) {
       pRays.push(pRay);

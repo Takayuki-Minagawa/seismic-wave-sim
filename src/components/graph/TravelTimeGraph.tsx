@@ -152,26 +152,9 @@ export function TravelTimeGraph({
     const phases: WavePhase[] = ['P', 'S', 'PKP', 'PP', 'SKS'];
 
     for (const phase of phases) {
-      // Keep the first arrival per 1° bin so interleaved ray branches draw one clean curve.
-      const firstArrivals = new Map<number, TravelTimePoint>();
-      for (const d of arrivedData) {
-        if (d.phase !== phase) continue;
-        const bin = Math.round(d.distanceDeg);
-        const prev = firstArrivals.get(bin);
-        if (!prev || d.timeSec < prev.timeSec) firstArrivals.set(bin, d);
-      }
-      let phaseData = [...firstArrivals.values()].sort((a, b) => a.distanceDeg - b.distanceDeg);
-      // First-arrival time never decreases with distance: a suffix minimum drops
-      // bins that only caught a later branch because the ray fan is sparse there.
-      let runningMin = Infinity;
-      phaseData = phaseData
-        .reverse()
-        .filter(d => {
-          if (d.timeSec > runningMin) return false;
-          runningMin = d.timeSec;
-          return true;
-        })
-        .reverse();
+      let phaseData = arrivedData
+        .filter(d => d.phase === phase)
+        .sort((a, b) => a.distanceDeg - b.distanceDeg);
 
       // S-wave ends at the shadow zone boundary
       if (phase === 'S') {

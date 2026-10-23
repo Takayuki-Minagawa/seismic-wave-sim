@@ -8,7 +8,7 @@
 
 import { EARTH_LAYERS } from '../../data/earthModel';
 import { SimulationState, RaySegment, Ray } from '../../physics/types';
-import { WavefrontData, RayTip } from '../../physics/wavefront';
+import { WavefrontData, RayTip, pointAlongSegment } from '../../physics/wavefront';
 import { EARTH_RADIUS_KM, DEG_TO_RAD } from '../../physics/constants';
 import { radiusAngleToCanvas, CanvasCenter, epicentralToAbsAngle, drawCircle } from '../../utils/geometry';
 import { WAVE_COLORS, SHADOW_ZONE_COLOR, SHADOW_ZONE_P_COLOR, waveAmplitude, shade } from '../../utils/colorScale';
@@ -227,13 +227,8 @@ function drawRayPaths(
         if (elapsed > state.currentTimeSec) break;
         const segFrac = Math.min(1, (state.currentTimeSec - elapsed) / Math.max(seg.travelTime, 0.001));
         const p0 = rayPoint(config, epi, side, seg.startRadius, seg.startAngle);
-        const p1 = rayPoint(
-          config,
-          epi,
-          side,
-          seg.startRadius + (seg.endRadius - seg.startRadius) * segFrac,
-          seg.startAngle + (seg.endAngle - seg.startAngle) * segFrac,
-        );
+        const tip = pointAlongSegment(seg, segFrac);
+        const p1 = rayPoint(config, epi, side, tip.radiusKm, tip.angleRad);
         if (!started) {
           ctx.moveTo(p0.x, p0.y);
           started = true;
@@ -420,7 +415,7 @@ function drawObservers(
   const arrivalWindow = 1.4 * Math.max(state.speedMultiplier, 1);
 
   for (const obs of state.observers) {
-    const absAngle = epicentralToAbsAngle(obs.surfaceAngleDeg, epi);
+    const absAngle = epicentralToAbsAngle(obs.surfaceAngleDeg, epi, obs.side);
     const pos = radiusAngleToCanvas(EARTH_RADIUS_KM, absAngle, center, earthPixelRadius);
     const outward = (absAngle - 90) * DEG_TO_RAD;
     const ox = Math.cos(outward);

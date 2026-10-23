@@ -13,7 +13,7 @@ interface EarthStageProps {
   endTimeSec: number;
   onQuake: () => void;
   onEpicenterChange: (config: EpicenterConfig) => void;
-  onAddObserver: (epicentralDeg: number) => void;
+  onAddObserver: (epicentralDeg: number, side: 1 | -1) => void;
   onSelectObserver: (id: string | null) => void;
 }
 

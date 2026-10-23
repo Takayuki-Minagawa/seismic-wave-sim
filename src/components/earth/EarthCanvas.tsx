@@ -2,7 +2,7 @@ import { useRef, useEffect, useLayoutEffect } from 'react';
 import { SimulationState, EpicenterConfig } from '../../physics/types';
 import { computeWavefronts } from '../../physics/wavefront';
 import { drawEarth, DrawConfig } from './earthRenderer';
-import { canvasToRadiusAngle, absAngleToEpicentral, radiusAngleToCanvas, epicentralToAbsAngle } from '../../utils/geometry';
+import { canvasToRadiusAngle, radiusAngleToCanvas, epicentralToAbsAngle, signedOffsetFromEpicenter } from '../../utils/geometry';
 import { EARTH_RADIUS_KM } from '../../physics/constants';
 import { EARTH_LAYERS } from '../../data/earthModel';
 import { useTranslation } from 'react-i18next';
@@ -11,7 +11,7 @@ interface EarthCanvasProps {
   state: SimulationState;
   isDark: boolean;
   onEpicenterChange: (config: EpicenterConfig) => void;
-  onAddObserver: (epicentralDeg: number) => void;
+  onAddObserver: (epicentralDeg: number, side: 1 | -1) => void;
   onSelectObserver: (id: string | null) => void;
 }
 
@@ -128,7 +128,7 @@ export function EarthCanvas({
     const { center, earthPixelRadius } = configRef.current;
     const s = stateRef.current;
     for (const obs of s.observers) {
-      const abs = epicentralToAbsAngle(obs.surfaceAngleDeg, s.epicenter.surfaceAngleDeg);
+      const abs = epicentralToAbsAngle(obs.surfaceAngleDeg, s.epicenter.surfaceAngleDeg, obs.side);
       const marker = radiusAngleToCanvas(EARTH_RADIUS_KM, abs, center, earthPixelRadius);
       const label = radiusAngleToCanvas(EARTH_RADIUS_KM + (24 / earthPixelRadius) * EARTH_RADIUS_KM, abs, center, earthPixelRadius);
       if (Math.hypot(marker.x - x, marker.y - y) < 14 || Math.hypot(label.x - x, label.y - y) < 12) {
@@ -154,7 +154,8 @@ export function EarthCanvas({
     const s = stateRef.current;
     const { radiusKm, angleDeg } = polar(x, y);
     if (radiusKm < EARTH_RADIUS_KM * 0.85 || radiusKm > EARTH_RADIUS_KM * 1.2) return;
-    onAddObserver(absAngleToEpicentral(angleDeg, s.epicenter.surfaceAngleDeg));
+    const offset = signedOffsetFromEpicenter(angleDeg, s.epicenter.surfaceAngleDeg);
+    onAddObserver(Math.abs(offset), offset < 0 ? -1 : 1);
   };
 
   const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {

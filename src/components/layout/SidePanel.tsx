@@ -40,7 +40,7 @@ export function SidePanel({ state, tab, onTabChange, hideMissions = false }: Sid
         />
       </div>
       <div className="scroll-thin min-h-0 flex-1 overflow-y-auto">
-        {/* Keep the quiz mounted so progress survives tab switches. */}
+        {/* Keep the quiz mounted so progress survives switching between these tabs. */}
         <div className={active === 'quiz' ? '' : 'hidden'}><QuizFrame /></div>
         {active === 'missions' && <MissionPanel />}
         {active === 'explanation' && <LearningPanel state={state} />}

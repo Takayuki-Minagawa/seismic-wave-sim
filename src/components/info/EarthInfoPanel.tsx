@@ -7,6 +7,12 @@ import { missionStore } from '../../game/missions';
 
 const MAX_VELOCITY = Math.max(...EARTH_LAYERS.map(l => l.pVelocity));
 
+// Survives unmounting when the user switches tabs, so exploration can span visits.
+let exploredCache = new Set<string>();
+const rememberExplored = (layers: Set<string>) => {
+  exploredCache = layers;
+};
+
 function VelocityBar({ label, value, color, blockedLabel }: { label: string; value: number; color: string; blockedLabel: string }) {
   return (
     <div className="flex items-center gap-2 text-[11px]">
@@ -26,12 +32,13 @@ function VelocityBar({ label, value, color, blockedLabel }: { label: string; val
 export function EarthInfoPanel() {
   const { t } = useTranslation();
   const [openLayer, setOpenLayer] = useState<EarthLayer['name'] | null>(null);
-  const [explored, setExplored] = useState<Set<string>>(() => new Set());
+  const [explored, setExplored] = useState<Set<string>>(() => exploredCache);
 
   const toggle = (name: EarthLayer['name']) => {
     setOpenLayer(prev => (prev === name ? null : name));
     if (explored.has(name)) return;
     const next = new Set(explored).add(name);
+    rememberExplored(next);
     setExplored(next);
     if (next.size === EARTH_LAYERS.length) missionStore.unlock('layers');
   };
