@@ -12,7 +12,7 @@ import { P_SHADOW_END_DEG, P_SHADOW_START_DEG, S_SHADOW_START_DEG } from './shad
 const MAX_INTERPOLATION_GAP_DEG = 15;
 
 /** Max distance jump between neighbouring rays that still counts as one continuous branch. */
-const MAX_BRANCH_STEP_DEG = 15;
+const MAX_BRANCH_STEP_DEG = 2;
 
 /** Sampling step of the published travel-time curve. */
 const CURVE_STEP_DEG = 0.5;

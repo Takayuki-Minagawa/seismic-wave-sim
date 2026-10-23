@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { missionStore } from './missions';
+import { exploredLayersStore, missionStore } from './missions';
 import { toastStore } from './toastStore';
 import { sound } from './sound';
 
@@ -13,4 +13,8 @@ export function useToasts() {
 
 export function useMuted() {
   return useSyncExternalStore(sound.subscribe, sound.isMuted);
+}
+
+export function useExploredLayers() {
+  return useSyncExternalStore(exploredLayersStore.subscribe, exploredLayersStore.getSnapshot);
 }

@@ -112,6 +112,29 @@ function load(): MissionId[] {
 }
 
 let unlocked: MissionId[] = load();
+
+// Layers inspected in the Structure tab (progress toward the "layers" mission).
+let exploredLayers: ReadonlySet<string> = new Set();
+const exploredListeners = new Set<() => void>();
+
+export const exploredLayersStore = {
+  subscribe(fn: () => void) {
+    exploredListeners.add(fn);
+    return () => { exploredListeners.delete(fn); };
+  },
+  getSnapshot: () => exploredLayers,
+  /** Mark a layer as explored; unlocks the mission once every layer has been seen. */
+  mark(name: string, total: number) {
+    if (exploredLayers.has(name)) return;
+    exploredLayers = new Set(exploredLayers).add(name);
+    exploredListeners.forEach(fn => fn());
+    if (exploredLayers.size === total) missionStore.unlock('layers');
+  },
+  clear() {
+    exploredLayers = new Set();
+    exploredListeners.forEach(fn => fn());
+  },
+};
 const listeners = new Set<() => void>();
 
 function emit() {
@@ -168,6 +191,7 @@ export const missionStore = {
   reset() {
     unlocked = [];
     writeStorage(STORAGE_KEY, '[]');
+    exploredLayersStore.clear();
     emit();
   },
 };

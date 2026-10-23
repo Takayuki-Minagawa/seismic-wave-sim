@@ -87,8 +87,11 @@ function traceSingleRay(
     return -1;
   };
 
+  // Up-going rays (takeoff > 90°) skip the descent and only climb to the surface.
+  const goesUp = takeoffAngleDeg > 90;
+
   // Descend through layers
-  for (let li = currentLayerIdx; li < EARTH_LAYERS.length; li++) {
+  for (let li = goesUp ? EARTH_LAYERS.length : currentLayerIdx; li < EARTH_LAYERS.length; li++) {
     const layer = EARTH_LAYERS[li];
     const v = waveType === 'P' ? layer.pVelocity : layer.sVelocity;
 
@@ -261,25 +264,49 @@ export function computeRayFan(
   depthKm: number,
 ): { pRays: Ray[]; sRays: Ray[] } {
   const sourceRadius = EARTH_RADIUS_KM - depthKm;
-  const pRays: Ray[] = [];
-  const sRays: Ray[] = [];
+  return {
+    pRays: traceFan(sourceRadius, 'P', 3000),
+    sRays: traceFan(sourceRadius, 'S', 4000),
+  };
+}
 
-  // ~0.25° steps keep neighbouring rays close near critical angles, where the
-  // surface distance changes fastest. A near-vertical ray reaches the antipode.
+/** Neighbouring rays landing farther apart than this get extra rays in between. */
+const REFINE_STEP_DEG = 1.5;
+/** Max bisection depth per gap (0.25° / 2^7 ≈ 0.002°). */
+const REFINE_DEPTH = 7;
+
+/**
+ * Trace a fan of rays in takeoff order: down-going rays (0.05°–89.75°) plus
+ * up-going rays (90.25°–179.75°) that cover the cap above a deep focus.
+ * Where neighbouring rays land far apart (near critical angles), the gap is
+ * bisected so the travel-time curve can be followed without bridging branches.
+ */
+function traceFan(sourceRadius: number, waveType: WaveType, maxTimeSec: number): Ray[] {
   const takeoffs = [0.05];
-  for (let i = 0; i <= 356; i++) takeoffs.push(0.5 + i * 0.25);
-
-  for (const takeoff of takeoffs) {
-    const pRay = traceSingleRay(sourceRadius, takeoff, 'P');
-    if (pRay && pRay.totalTravelTime > 0 && pRay.totalTravelTime < 3000) {
-      pRays.push(pRay);
-    }
-
-    const sRay = traceSingleRay(sourceRadius, takeoff, 'S');
-    if (sRay && sRay.totalTravelTime > 0 && sRay.totalTravelTime < 4000) {
-      sRays.push(sRay);
-    }
+  for (let t = 0.5; t < 180; t += 0.25) {
+    if (t !== 90) takeoffs.push(t);
   }
 
-  return { pRays, sRays };
+  const trace = (takeoff: number) => {
+    const ray = traceSingleRay(sourceRadius, takeoff, waveType);
+    return ray && ray.totalTravelTime > 0 && ray.totalTravelTime < maxTimeSec ? ray : null;
+  };
+
+  const refine = (a: Ray, b: Ray, depth: number): Ray[] => {
+    if (depth === 0 || a.isAbsorbed || b.isAbsorbed) return [];
+    if (Math.abs(a.surfaceAngleDeg - b.surfaceAngleDeg) <= REFINE_STEP_DEG) return [];
+    const mid = trace((a.takeoffAngleDeg + b.takeoffAngleDeg) / 2);
+    if (!mid) return [];
+    return [...refine(a, mid, depth - 1), mid, ...refine(mid, b, depth - 1)];
+  };
+
+  const rays: Ray[] = [];
+  for (const takeoff of takeoffs) {
+    const ray = trace(takeoff);
+    if (!ray) continue;
+    const prev = rays[rays.length - 1];
+    if (prev) rays.push(...refine(prev, ray, REFINE_DEPTH));
+    rays.push(ray);
+  }
+  return rays;
 }

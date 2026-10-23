@@ -3,15 +3,10 @@ import { useTranslation } from 'react-i18next';
 import { EARTH_LAYERS } from '../../data/earthModel';
 import { EARTH_RADIUS_KM } from '../../physics/constants';
 import { EarthLayer } from '../../physics/types';
-import { missionStore } from '../../game/missions';
+import { exploredLayersStore } from '../../game/missions';
+import { useExploredLayers } from '../../game/hooks';
 
 const MAX_VELOCITY = Math.max(...EARTH_LAYERS.map(l => l.pVelocity));
-
-// Survives unmounting when the user switches tabs, so exploration can span visits.
-let exploredCache = new Set<string>();
-const rememberExplored = (layers: Set<string>) => {
-  exploredCache = layers;
-};
 
 function VelocityBar({ label, value, color, blockedLabel }: { label: string; value: number; color: string; blockedLabel: string }) {
   return (
@@ -32,15 +27,11 @@ function VelocityBar({ label, value, color, blockedLabel }: { label: string; val
 export function EarthInfoPanel() {
   const { t } = useTranslation();
   const [openLayer, setOpenLayer] = useState<EarthLayer['name'] | null>(null);
-  const [explored, setExplored] = useState<Set<string>>(() => exploredCache);
+  const explored = useExploredLayers();
 
   const toggle = (name: EarthLayer['name']) => {
     setOpenLayer(prev => (prev === name ? null : name));
-    if (explored.has(name)) return;
-    const next = new Set(explored).add(name);
-    rememberExplored(next);
-    setExplored(next);
-    if (next.size === EARTH_LAYERS.length) missionStore.unlock('layers');
+    exploredLayersStore.mark(name, EARTH_LAYERS.length);
   };
 
   return (
